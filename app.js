@@ -281,8 +281,25 @@ function setupDragAndDrop() {
             const file = files[i];
             if (!file.type.startsWith('image/')) continue;
 
+            if (currentPhotosArray.length >= 10) {
+                alert("Has alcanzado el límite máximo de 10 fotos por recuerdo.");
+                break;
+            }
+
             try {
                 const compressedBase64 = await resizeAndCompressImage(file);
+
+                // Validar que el tamaño total no exceda el límite de ~1MB de Firestore
+                const currentSizeApprox = JSON.stringify(currentPhotosArray).length;
+                const newAddedSize = compressedBase64.length;
+
+                // Firestore tiene un límite de 1MB (1,048,576 bytes) por documento. 
+                // Dejamos un margen de ~100KB para el texto y otras propiedades del recuerdo.
+                if (currentSizeApprox + newAddedSize > 900000) {
+                    alert(`No se pudo añadir la foto "${file.name}" porque el recuerdo supera el tamaño máximo permitido (1MB). Intenta con menos fotos.`);
+                    continue;
+                }
+
                 currentPhotosArray.push(compressedBase64);
                 renderMiniatures();
             } catch (err) {
@@ -318,7 +335,7 @@ window.removeMiniature = function (index) {
     renderMiniatures();
 }
 
-function resizeAndCompressImage(file, maxWidth = 1200) {
+function resizeAndCompressImage(file, maxWidth = 800) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = function (event) {
@@ -337,7 +354,7 @@ function resizeAndCompressImage(file, maxWidth = 1200) {
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
-                resolve(canvas.toDataURL('image/jpeg', 0.75)); // Compresión eficiente a JPG
+                resolve(canvas.toDataURL('image/jpeg', 0.6)); // Mayor compresión a JPG para evitar error de 1MB
             };
             img.onerror = err => reject(err);
             img.src = event.target.result;
@@ -369,7 +386,7 @@ function resetPhotoInput() {
 
 window.editarRecuerdo = function (id) {
     const pass = prompt("Por seguridad, introduce la contraseña para editar (Por defecto es: amor123):");
-    if (pass !== "amor123") {
+    if (pass !== "Nuestroamorperdura") {
         if (pass !== null) alert("Contraseña incorrecta.");
         return;
     }
