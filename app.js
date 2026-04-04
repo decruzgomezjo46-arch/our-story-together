@@ -581,7 +581,14 @@ function renderData(dataToRender) {
                     </div>
                     <span class="timeline-date">${fechaFormateada}</span>
                     <h3 class="timeline-title">${recuerdo.titulo}</h3>
-                    <p class="timeline-content">${recuerdo.descripcion}</p>
+                    ${recuerdo.descripcion ? `
+                    <div class="expandable-text"
+                         onmouseenter="this.classList.add('expanded')"
+                         onmouseleave="if(!this.classList.contains('pinned')) this.classList.remove('expanded')"
+                         onclick="this.classList.toggle('pinned'); this.classList.toggle('expanded', this.classList.contains('pinned') || false)">
+                        <p class="timeline-content text-collapsed">${recuerdo.descripcion}</p>
+                        <span class="read-more-btn"><i class="fa-solid fa-chevron-down"></i><span class="btn-label"></span></span>
+                    </div>` : ''}
                     ${carouselHTML}
                 </div>
             `;

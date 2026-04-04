@@ -864,3 +864,83 @@ input[type="file"] { display: none; }
     color: var(--accent-light) !important;
     margin-top: 5px;
 }
+
+/* ============================
+   📖 DESCRIPCIÓN COLAPSABLE
+   ============================ */
+.expandable-text {
+    margin-top: 10px;
+    cursor: pointer;
+    position: relative;
+}
+
+/* Texto oculto por defecto */
+.timeline-content.text-collapsed {
+    display: none;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    line-height: 1.7;
+    margin-bottom: 10px;
+    animation: fadeInText 0.3s ease;
+}
+
+/* Al hacer hover o click, se muestra */
+.expandable-text.expanded .timeline-content.text-collapsed {
+    display: block;
+}
+
+/* Botón "Leer historia" */
+.read-more-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--primary-color);
+    border: 1px solid rgba(114, 47, 55, 0.3);
+    background: rgba(114, 47, 55, 0.06);
+    padding: 5px 13px;
+    border-radius: 20px;
+    transition: all 0.25s ease;
+    letter-spacing: 0.4px;
+    user-select: none;
+}
+
+.read-more-btn i {
+    font-size: 0.75rem;
+    transition: transform 0.3s ease;
+}
+
+/* Hover sobre el contenedor */
+.expandable-text:hover .read-more-btn {
+    background: rgba(114, 47, 55, 0.12);
+    border-color: var(--primary-color);
+}
+
+/* Ícono rota cuando está expandido */
+.expandable-text.expanded .read-more-btn i {
+    transform: rotate(180deg);
+}
+
+/* Texto dinámico del botón via CSS */
+.expandable-text:not(.expanded) .read-more-btn .btn-label::before {
+    content: 'Leer historia';
+}
+.expandable-text.expanded .read-more-btn .btn-label::before {
+    content: 'Ocultar';
+}
+
+/* Estado fijado con click */
+.expandable-text.pinned {
+    cursor: zoom-out;
+}
+.expandable-text.pinned .read-more-btn {
+    background: rgba(114, 47, 55, 0.18);
+    border-color: var(--primary-color);
+}
+
+@keyframes fadeInText {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
