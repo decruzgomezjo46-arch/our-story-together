@@ -19,11 +19,15 @@ let app, db, storage;
 try {
     app = firebase.initializeApp(firebaseConfig);
     db = firebase.firestore();
-    storage = firebase.storage();
-    console.log("🔥 Firebase & Storage activados con éxito!");
+    // storage = firebase.storage(); // Desactivado por falta de presupuesto
+    console.log("🔥 Firebase (Base de Datos) activado con éxito!");
 } catch (e) {
     console.error("Error inicializando Firebase:", e);
 }
+
+// Configuración de Cloudinary (Para fotos y videos gratis)
+const CLOUDINARY_CLOUD_NAME = "dwdxuhcmz";
+const CLOUDINARY_UPLOAD_PRESET = "recuerdos_preset";
 
 // Variables Globales
 let recuerdos = [];
@@ -495,11 +499,29 @@ async function compressVideo(file) {
     }
 }
 
-async function uploadToStorage(blob, fileName) {
-    if (!storage) return null;
-    const ref = storage.ref().child(`recuerdos/${Date.now()}_${fileName}`);
-    const snapshot = await ref.put(blob);
-    return await snapshot.ref.getDownloadURL();
+async function uploadToCloudinary(blob, fileName, type) {
+    console.log(`☁️ Subiendo ${type} a Cloudinary: ${fileName}`);
+    const resourceType = type === 'video' ? 'video' : 'image';
+    const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`;
+
+    const formData = new FormData();
+    formData.append("file", blob);
+    formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+    formData.append("public_id", `recuerdo_${Date.now()}`);
+
+    const response = await fetch(url, {
+        method: "POST",
+        body: formData,
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error.message || "Error al subir a Cloudinary");
+    }
+
+    const data = await response.json();
+    console.log("✅ Subido a Cloudinary:", data.secure_url);
+    return data.secure_url;
 }
 
 // ==========================================
@@ -659,22 +681,18 @@ function setupForm() {
                         }
                     }
                     
-                    saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Subiendo a la nube...`;
+                    saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Subiendo a la nube (Cloudinary)...`;
                     let url;
                     try {
-                        url = await uploadToStorage(blob, item.file.name);
-                    } catch (storageErr) {
-                        console.error("❌ Error en Firebase Storage:", storageErr);
-                        const msg = storageErr.code === 'storage/unauthorized' 
-                            ? "Error: Firebase no tiene permisos. Revisa las reglas de Storage." 
-                            : "Error de conexión (CORS). Sigue los pasos de configuración de Google Cloud.";
-                        alert(msg);
-                        throw storageErr;
+                        url = await uploadToCloudinary(blob, item.file.name, item.type);
+                    } catch (uploadErr) {
+                        console.error("❌ Error en Cloudinary:", uploadErr);
+                        alert("Error al subir a Cloudinary: " + uploadErr.message);
+                        throw uploadErr;
                     }
                     
                     if (url) {
                         filesToUpload.push({ url, type: item.type });
-                        console.log(`✅ Subido con éxito: ${url}`);
                     } else {
                         throw new Error(`Fallo al subir el archivo ${item.file.name}`);
                     }
