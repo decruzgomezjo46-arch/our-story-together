@@ -5,6 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nuestra Historia del Amor</title>
+    <!-- COI Service Worker for SharedArrayBuffer support in GH Pages -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/coi-serviceworker/0.1.7/coi-serviceworker.min.js"></script>
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,6 +21,12 @@
     <!-- Firebase Compat Libraries (Soporte local sin servidor) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
+
+    <!-- FFmpeg.wasm for Video Compression (v0.12.x) -->
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
+    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+
     <!-- Lógica de la APP -->
     <script src="app.js" defer></script>
 </head>
@@ -114,9 +122,10 @@
                 <div class="form-group">
                     <label for="tipoRecuerdo">¿Qué deseas agregar?</label>
                     <select id="tipoRecuerdo" onchange="toggleFormFields()">
-                        <option value="ambos">Historia con Foto</option>
+                        <option value="ambos">Historia con Multimedia</option>
                         <option value="historia">Solo Historia (Texto)</option>
                         <option value="foto">Solo Foto (Galería)</option>
+                        <option value="video">Solo Video</option>
                     </select>
                 </div>
 
@@ -137,14 +146,14 @@
                 </div>
 
                 <div class="form-group" id="group-foto">
-                    <label>Fotografía del Recuerdo</label>
+                    <label id="label-media">Multimedia del Recuerdo</label>
                     <div class="drag-drop-area" id="dragDropArea">
                         <i class="fa-solid fa-cloud-arrow-up"></i>
-                        <p>Arrastra y suelta tu foto aquí</p>
+                        <p id="drag-drop-text">Arrastra y suelta tu foto o video aquí</p>
                         <p class="small-text">o</p>
                         <label for="fotoUpload" class="btn-primary"
                             style="display:inline-block; margin-top:10px;">Buscar en PC</label>
-                        <input type="file" id="fotoUpload" accept="image/*" multiple>
+                        <input type="file" id="fotoUpload" accept="image/*,video/*" multiple>
                     </div>
                     <div class="image-preview-multiple" id="imagePreviewContainer"
                         style="display:none; gap: 10px; flex-wrap: wrap; margin-top: 15px; justify-content: center;">
@@ -161,6 +170,7 @@
     <div id="lightbox" class="lightbox">
         <span class="lightbox-close">&times;</span>
         <img class="lightbox-content" id="lightbox-img">
+        <video class="lightbox-content" id="lightbox-video" controls style="display:none;"></video>
         <div id="lightbox-caption"></div>
     </div>
 

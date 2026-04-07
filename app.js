@@ -15,11 +15,12 @@ const firebaseConfig = {
 
 // Inicialización de Firebase
 const isFirebaseConfigured = true;
-let app, db;
+let app, db, storage;
 try {
     app = firebase.initializeApp(firebaseConfig);
     db = firebase.firestore();
-    console.log("🔥 Firebase activado con éxito!");
+    storage = firebase.storage();
+    console.log("🔥 Firebase & Storage activados con éxito!");
 } catch (e) {
     console.error("Error inicializando Firebase:", e);
 }
@@ -27,7 +28,7 @@ try {
 // Variables Globales
 let recuerdos = [];
 let editandoId = null;
-let currentPhotosArray = []; // Arreglo para múltiples fotos
+let currentMediaArray = []; // Arreglo para múltiples fotos y videos {file, type, preview}
 let currentFilterYear = 'Todos';
 let currentSearchTerm = '';
 
@@ -119,6 +120,11 @@ document.addEventListener('DOMContentLoaded', () => {
     setupForm();
     setupLightbox();
     createFloatingHearts();
+
+    // Verificación de protocolo local
+    if (window.location.protocol === 'file:') {
+        alert("⚠️ ATENCIÓN: Estás abriendo el archivo localmente (file://). Para que la compresión de video y la subida funcionen, necesitas usar un servidor local (ej: Live Server de VS Code o npx serve). De lo contrario, los videos no podrán procesarse.");
+    }
 
     // Cargar datos
     if (isFirebaseConfigured) {
@@ -233,12 +239,22 @@ function setupLightbox() {
     if (!lightbox) return;
 
     closeBtn.onclick = () => lightbox.style.display = "none";
-    lightbox.onclick = (e) => {
-        if (e.target === lightbox) lightbox.style.display = "none";
-    };
-
-    window.openLightbox = function (src, title) {
-        document.getElementById('lightbox-img').src = src;
+    window.openLightbox = function (src, title, type = 'image') {
+        const img = document.getElementById('lightbox-img');
+        const video = document.getElementById('lightbox-video');
+        
+        if (type === 'video') {
+            img.style.display = 'none';
+            video.style.display = 'block';
+            video.src = src;
+            video.play();
+        } else {
+            video.style.display = 'none';
+            video.play(); // Detener video si estaba sonando
+            img.style.display = 'block';
+            img.src = src;
+        }
+        
         document.getElementById('lightbox-caption').innerText = title || '';
         lightbox.style.display = "block";
     };
@@ -279,51 +295,106 @@ function setupDragAndDrop() {
 
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
-            if (!file.type.startsWith('image/')) continue;
+            const isImage = file.type.startsWith('image/');
+            const isVideo = file.type.startsWith('video/');
 
-            if (currentPhotosArray.length >= 10) {
-                alert("Has alcanzado el límite máximo de 10 fotos por recuerdo.");
+            if (!isImage && !isVideo) continue;
+
+            if (currentMediaArray.length >= 10) {
+                alert("Has alcanzado el límite máximo de 10 archivos por recuerdo.");
                 break;
             }
 
             try {
-                const compressedBase64 = await resizeAndCompressImage(file);
-
-                // Validar que el tamaño total no exceda el límite de ~1MB de Firestore
-                const currentSizeApprox = JSON.stringify(currentPhotosArray).length;
-                const newAddedSize = compressedBase64.length;
-
-                // Firestore tiene un límite de 1MB (1,048,576 bytes) por documento. 
-                // Dejamos un margen de ~100KB para el texto y otras propiedades del recuerdo.
-                if (currentSizeApprox + newAddedSize > 900000) {
-                    alert(`No se pudo añadir la foto "${file.name}" porque el recuerdo supera el tamaño máximo permitido (1MB). Intenta con menos fotos.`);
-                    continue;
+                if (isImage) {
+                    const compressedBase64 = await resizeAndCompressImage(file);
+                    currentMediaArray.push({
+                        file: file, // Guardamos el original por si acaso o el blob
+                        type: 'image',
+                        data: compressedBase64 // Base64 para previsualización inmediata
+                    });
+                } else if (isVideo) {
+                    // Previsualización de video (primer frame)
+                    const videoPreview = await getVideoThumbnail(file);
+                    currentMediaArray.push({
+                        file: file,
+                        type: 'video',
+                        data: videoPreview
+                    });
                 }
-
-                currentPhotosArray.push(compressedBase64);
                 renderMiniatures();
             } catch (err) {
-                console.error("Error al comprimir:", err);
+                console.error("Error al procesar archivo:", err);
             }
         }
     }
+}
+
+async function getVideoThumbnail(file) {
+    return new Promise((resolve) => {
+        const video = document.createElement('video');
+        video.preload = 'metadata';
+        video.muted = true;
+        video.playsInline = true;
+        
+        const url = URL.createObjectURL(file);
+        video.src = url;
+
+        // Timeout de seguridad: si no carga en 4s, devolvemos un ícono genérico
+        const timeout = setTimeout(() => {
+            console.warn("⏱️ Tiempo de espera agotado para la miniatura del video.");
+            URL.revokeObjectURL(url);
+            // Devolver un icono de video base64 genérico o color plano
+            resolve('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=');
+        }, 4000);
+
+        video.onloadedmetadata = () => {
+            // Intentamos capturar el frame en el segundo 0.2
+            video.currentTime = 0.2;
+        };
+
+        video.onseeked = () => {
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth || 320;
+                canvas.height = video.videoHeight || 180;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+                clearTimeout(timeout);
+                URL.revokeObjectURL(url);
+                resolve(dataUrl);
+            } catch (e) {
+                console.error("❌ Error capturando frame:", e);
+            }
+        };
+
+        video.onerror = () => {
+            console.error("❌ Error cargando el video para miniatura.");
+            clearTimeout(timeout);
+            URL.revokeObjectURL(url);
+            resolve('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=');
+        };
+    });
 }
 
 function renderMiniatures() {
     const container = document.getElementById('imagePreviewContainer');
     container.innerHTML = '';
 
-    if (currentPhotosArray.length === 0) {
+    if (currentMediaArray.length === 0) {
         container.style.display = 'none';
         document.getElementById('dragDropArea').style.display = 'block';
         return;
     }
 
-    currentPhotosArray.forEach((b64, index) => {
+    currentMediaArray.forEach((item, index) => {
         const div = document.createElement('div');
         div.className = 'mini-preview';
+        const icon = item.type === 'video' ? '<i class="fa-solid fa-play mini-video-icon"></i>' : '';
         div.innerHTML = `
-            <img src="${b64}">
+            <img src="${item.data}">
+            ${icon}
             <button type="button" class="remove-mini" onclick="window.removeMiniature(${index})"><i class="fa-solid fa-xmark"></i></button>
         `;
         container.appendChild(div);
@@ -331,7 +402,7 @@ function renderMiniatures() {
 }
 
 window.removeMiniature = function (index) {
-    currentPhotosArray.splice(index, 1);
+    currentMediaArray.splice(index, 1);
     renderMiniatures();
 }
 
@@ -354,7 +425,9 @@ function resizeAndCompressImage(file, maxWidth = 800) {
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
-                resolve(canvas.toDataURL('image/jpeg', 0.6)); // Mayor compresión a JPG para evitar error de 1MB
+                canvas.toBlob((blob) => {
+                    resolve(blob);
+                }, 'image/jpeg', 0.7);
             };
             img.onerror = err => reject(err);
             img.src = event.target.result;
@@ -362,6 +435,51 @@ function resizeAndCompressImage(file, maxWidth = 800) {
         reader.onerror = err => reject(err);
         reader.readAsDataURL(file);
     });
+}
+
+// Lógica de FFmpeg para comprimir video
+let ffmpeg = null;
+async function compressVideo(file) {
+    console.log("🎬 Iniciando compresión de video...");
+    const { FFmpeg } = FFmpegWASM;
+    const { fetchFile, toBlobURL } = FFmpegUtil;
+
+    try {
+        if (!ffmpeg) {
+            console.log("⚙️ Cargando librería FFmpeg (30MB aprox)...");
+            ffmpeg = new FFmpeg();
+            // Usamos una versión específica del núcleo para mayor estabilidad
+            const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+            await ffmpeg.load({
+                coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+                wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+            });
+            console.log("✅ FFmpeg cargado!");
+        }
+
+        const inputName = 'input.mp4';
+        const outputName = 'output.mp4';
+        
+        await ffmpeg.writeFile(inputName, await fetchFile(file));
+        console.log("⏳ Procesando video (esto puede tardar unos segundos)...");
+        
+        // Comando optimizado: 480p para máximo ahorro
+        await ffmpeg.exec(['-i', inputName, '-vf', 'scale=-2:480', '-vcodec', 'libx264', '-crf', '28', '-preset', 'ultrafast', outputName]);
+
+        const data = await ffmpeg.readFile(outputName);
+        console.log("✨ Video comprimido con éxito!");
+        return new Blob([data.buffer], { type: 'video/mp4' });
+    } catch (error) {
+        console.error("❌ Error en compresión:", error);
+        throw error;
+    }
+}
+
+async function uploadToStorage(blob, fileName) {
+    if (!storage) return null;
+    const ref = storage.ref().child(`recuerdos/${Date.now()}_${fileName}`);
+    const snapshot = await ref.put(blob);
+    return await snapshot.ref.getDownloadURL();
 }
 
 // ==========================================
@@ -377,7 +495,7 @@ window.openModal = function () {
 }
 
 function resetPhotoInput() {
-    currentPhotosArray = [];
+    currentMediaArray = [];
     document.getElementById('fotoUpload').value = '';
     document.getElementById('imagePreviewContainer').style.display = 'none';
     document.getElementById('imagePreviewContainer').innerHTML = ''; // Limpiar miniaturas
@@ -404,16 +522,19 @@ window.editarRecuerdo = function (id) {
     document.getElementById('descripcion').value = recuerdo.descripcion || '';
 
     resetPhotoInput();
+    const hasMedia = recuerdo.media && recuerdo.media.length > 0;
     const hasFotos = recuerdo.fotos && recuerdo.fotos.length > 0;
     const hasOldFoto = recuerdo.foto;
 
-    if (hasFotos) {
-        currentPhotosArray = [...recuerdo.fotos];
+    if (hasMedia) {
+        currentMediaArray = recuerdo.media.map(m => ({ ...m, data: m.url }));
+    } else if (hasFotos) {
+        currentMediaArray = recuerdo.fotos.map(url => ({ url, type: 'image', data: url }));
     } else if (hasOldFoto) {
-        currentPhotosArray = [recuerdo.foto];
+        currentMediaArray = [{ url: recuerdo.foto, type: 'image', data: recuerdo.foto }];
     }
 
-    if (currentPhotosArray.length > 0) {
+    if (currentMediaArray.length > 0) {
         document.getElementById('dragDropArea').style.display = 'none';
         document.getElementById('imagePreviewContainer').style.display = 'flex';
         renderMiniatures();
@@ -460,8 +581,22 @@ window.toggleFormFields = function () {
     document.getElementById('fecha').required = true;
     document.getElementById('descripcion').required = (tipo !== 'foto');
 
-    gDesc.style.display = (tipo === 'foto') ? 'none' : 'block';
+    gDesc.style.display = (tipo === 'foto' || tipo === 'video') ? 'none' : 'block';
     gFoto.style.display = (tipo === 'historia') ? 'none' : 'block';
+
+    const labelMedia = document.getElementById('label-media');
+    const dragText = document.getElementById('drag-drop-text');
+
+    if (tipo === 'video') {
+        labelMedia.innerText = "Video del Recuerdo";
+        dragText.innerText = "Arrastra y suelta tu video aquí";
+    } else if (tipo === 'foto') {
+        labelMedia.innerText = "Fotografía del Recuerdo";
+        dragText.innerText = "Arrastra y suelta tu foto aquí";
+    } else {
+        labelMedia.innerText = "Multimedia del Recuerdo";
+        dragText.innerText = "Arrastra y suelta tus fotos o videos aquí";
+    }
 }
 
 function setupForm() {
@@ -473,10 +608,57 @@ function setupForm() {
         saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
 
         try {
-            const tipo = document.getElementById('tipoRecuerdo').value;
-            if ((tipo === 'ambos' || tipo === 'foto') && currentPhotosArray.length === 0) {
-                alert('Por favor agrega al menos una fotografía.');
-                return;
+            const tipo = document.getElementById('titulo').value ? document.getElementById('tipoRecuerdo').value : 'historia';
+            const filesToUpload = [];
+
+            if (tipo === 'ambos' || tipo === 'foto' || tipo === 'video') {
+                if (currentMediaArray.length === 0) {
+                    alert('Por favor agrega al menos un archivo multimedia.');
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = 'Guardar para siempre <i class="fa-solid fa-heart"></i>';
+                    return;
+                }
+
+                // Proceso de compresión y subida
+                for (const item of currentMediaArray) {
+                    let blob = item.file; // Por defecto el original
+
+                    if (item.type === 'image') {
+                        saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Optimizando foto...`;
+                        blob = await resizeAndCompressImage(item.file);
+                    } else if (item.type === 'video') {
+                        saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Comprimiendo video...`;
+                        try {
+                            // Timeout de 30 segundos para la compresión, si falla, subimos original
+                            const compressionPromise = compressVideo(item.file);
+                            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject('timeout'), 35000));
+                            blob = await Promise.race([compressionPromise, timeoutPromise]);
+                        } catch (e) {
+                            console.warn("⚠️ Compresión lenta o fallida. Subiendo video original...", e);
+                            blob = item.file;
+                        }
+                    }
+                    
+                    saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Subiendo a la nube...`;
+                    let url;
+                    try {
+                        url = await uploadToStorage(blob, item.file.name);
+                    } catch (storageErr) {
+                        console.error("❌ Error en Firebase Storage:", storageErr);
+                        const msg = storageErr.code === 'storage/unauthorized' 
+                            ? "Error: Firebase no tiene permisos. Revisa las reglas de Storage." 
+                            : "Error de conexión (CORS). Sigue los pasos de configuración de Google Cloud.";
+                        alert(msg);
+                        throw storageErr;
+                    }
+                    
+                    if (url) {
+                        filesToUpload.push({ url, type: item.type });
+                        console.log(`✅ Subido con éxito: ${url}`);
+                    } else {
+                        throw new Error(`Fallo al subir el archivo ${item.file.name}`);
+                    }
+                }
             }
 
             const data = {
@@ -484,7 +666,9 @@ function setupForm() {
                 titulo: document.getElementById('titulo').value,
                 fecha: document.getElementById('fecha').value,
                 descripcion: document.getElementById('descripcion').value || '',
-                fotos: currentPhotosArray
+                media: filesToUpload,
+                // Mantener compatibilidad con fotos viejas
+                fotos: filesToUpload.filter(f => f.type === 'image').map(f => f.url)
             };
 
             if (isFirebaseConfigured) {
@@ -541,33 +725,45 @@ function renderData(dataToRender) {
     let isLeft = true;
 
     dataToRender.forEach((recuerdo) => {
-        // Normalizar fotos (Compatibilidad vieja)
-        const fotosArray = recuerdo.fotos ? recuerdo.fotos : (recuerdo.foto ? [recuerdo.foto] : []);
+        // Normalizar multimedia (Compatibilidad vieja)
+        let mediaArray = recuerdo.media ? recuerdo.media : [];
+        if (mediaArray.length === 0) {
+            if (recuerdo.fotos) mediaArray = recuerdo.fotos.map(url => ({ url, type: 'image' }));
+            else if (recuerdo.foto) mediaArray = [{ url: recuerdo.foto, type: 'image' }];
+        }
 
         // Render Timeline
-        if (recuerdo.tipo === 'ambos' || recuerdo.tipo === 'historia') {
+        if (recuerdo.tipo === 'ambos' || recuerdo.tipo === 'historia' || recuerdo.tipo === 'video') {
             const dateObj = new Date(recuerdo.fecha + 'T00:00:00');
             const fechaFormateada = dateObj.toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
 
             const div = document.createElement('div');
-            // Agregamos animate-on-scroll para el efecto
             div.className = `timeline-item animate-on-scroll ${isLeft ? 'left' : 'right'}`;
 
             let carouselHTML = '';
-            if (fotosArray.length > 0) {
+            if (mediaArray.length > 0) {
                 const escapedTitle = recuerdo.titulo.replace(/'/g, "\\'");
-                if (fotosArray.length === 1) {
-                    carouselHTML = `<img src="${fotosArray[0]}" alt="" loading="lazy" style="cursor:pointer" onclick="window.openLightbox('${fotosArray[0]}', '${escapedTitle}')">`;
+                if (mediaArray.length === 1) {
+                    const item = mediaArray[0];
+                    if (item.type === 'video') {
+                        carouselHTML = `<video src="${item.url}" class="timeline-video" muted loop onmouseenter="this.play()" onmouseleave="this.pause()" onclick="window.openLightbox('${item.url}', '${escapedTitle}', 'video')"></video>`;
+                    } else {
+                        carouselHTML = `<img src="${item.url}" alt="" loading="lazy" style="cursor:pointer" onclick="window.openLightbox('${item.url}', '${escapedTitle}')">`;
+                    }
                 } else {
-                    let imagesHTML = '';
+                    let itemsHTML = '';
                     let indicatorsHTML = '';
-                    fotosArray.forEach((foto, idx) => {
-                        imagesHTML += `<img src="${foto}" class="carousel-img ${idx === 0 ? 'active' : ''}" loading="lazy" onclick="window.openLightbox('${foto}', '${escapedTitle}')">`;
+                    mediaArray.forEach((item, idx) => {
+                        if (item.type === 'video') {
+                            itemsHTML += `<video src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" muted loop onclick="window.openLightbox('${item.url}', '${escapedTitle}', 'video')"></video>`;
+                        } else {
+                            itemsHTML += `<img src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" loading="lazy" onclick="window.openLightbox('${item.url}', '${escapedTitle}')">`;
+                        }
                         indicatorsHTML += `<div class="indicator ${idx === 0 ? 'active' : ''}"></div>`;
                     });
                     carouselHTML = `
                     <div class="carousel-container" style="min-height: 250px; border-radius: 8px; margin-top:15px; cursor:pointer;" data-interval="true">
-                        ${imagesHTML}
+                        ${itemsHTML}
                         <div class="carousel-indicators">${indicatorsHTML}</div>
                     </div>`;
                 }
@@ -597,8 +793,8 @@ function renderData(dataToRender) {
         }
 
         // Render Gallery
-        if (recuerdo.tipo === 'ambos' || recuerdo.tipo === 'foto') {
-            if (fotosArray.length > 0) {
+        if (recuerdo.tipo === 'ambos' || recuerdo.tipo === 'foto' || recuerdo.tipo === 'video') {
+            if (mediaArray.length > 0) {
                 const dateObj = new Date(recuerdo.fecha + 'T00:00:00');
                 const fechaFormateada = dateObj.toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
                 const anio = recuerdo.fecha.substring(0, 4);
@@ -607,18 +803,27 @@ function renderData(dataToRender) {
                 div.className = 'gallery-item';
 
                 let galHTML = '';
-                if (fotosArray.length === 1) {
-                    galHTML = `<img src="${fotosArray[0]}" alt="" loading="lazy" onclick="window.openLightbox('${fotosArray[0]}', '${escapedTitle}')">`;
+                if (mediaArray.length === 1) {
+                    const item = mediaArray[0];
+                    if (item.type === 'video') {
+                        galHTML = `<video src="${item.url}" class="gallery-video" muted onmouseenter="this.play()" onmouseleave="this.pause()" onclick="window.openLightbox('${item.url}', '${escapedTitle}', 'video')"></video>`;
+                    } else {
+                        galHTML = `<img src="${item.url}" alt="" loading="lazy" onclick="window.openLightbox('${item.url}', '${escapedTitle}')">`;
+                    }
                 } else {
-                    let imagesHTML = '';
+                    let itemsHTML = '';
                     let indicatorsHTML = '';
-                    fotosArray.forEach((foto, idx) => {
-                        imagesHTML += `<img src="${foto}" class="carousel-img ${idx === 0 ? 'active' : ''}" loading="lazy" onclick="window.openLightbox('${foto}', '${escapedTitle}')">`;
+                    mediaArray.forEach((item, idx) => {
+                        if (item.type === 'video') {
+                            itemsHTML += `<video src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" muted onclick="window.openLightbox('${item.url}', '${escapedTitle}', 'video')"></video>`;
+                        } else {
+                            itemsHTML += `<img src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" loading="lazy" onclick="window.openLightbox('${item.url}', '${escapedTitle}')">`;
+                        }
                         indicatorsHTML += `<div class="indicator ${idx === 0 ? 'active' : ''}"></div>`;
                     });
                     galHTML = `
                     <div class="carousel-container" data-interval="true">
-                        ${imagesHTML}
+                        ${itemsHTML}
                         <div class="carousel-indicators">${indicatorsHTML}</div>
                     </div>`;
                 }
@@ -642,17 +847,19 @@ function renderData(dataToRender) {
 
     // Lógica para que giren los carruseles solos
     document.querySelectorAll('.carousel-container[data-interval="true"]').forEach(container => {
-        const images = container.querySelectorAll('.carousel-img');
+        const images = container.querySelectorAll('.carousel-img, video.carousel-img');
         const indicators = container.querySelectorAll('.indicator');
         if (images.length > 1) {
             let currentIndex = 0;
             setInterval(() => {
                 images[currentIndex].classList.remove('active');
+                if (images[currentIndex].tagName === 'VIDEO') images[currentIndex].pause();
                 if (indicators[currentIndex]) indicators[currentIndex].classList.remove('active');
 
                 currentIndex = (currentIndex + 1) % images.length;
 
                 images[currentIndex].classList.add('active');
+                if (images[currentIndex].tagName === 'VIDEO') images[currentIndex].play();
                 if (indicators[currentIndex]) indicators[currentIndex].classList.add('active');
             }, 3500); // 3.5 Segundos por slide
         }
