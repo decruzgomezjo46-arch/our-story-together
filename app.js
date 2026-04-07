@@ -736,7 +736,7 @@ function renderData(dataToRender) {
                 if (mediaArray.length === 1) {
                     const item = mediaArray[0];
                     if (item.type === 'video') {
-                        carouselHTML = `<video src="${item.url}" class="timeline-video" muted loop onmouseenter="this.play()" onmouseleave="this.pause()" onclick="window.openLightbox('${item.url}', '${escapedTitle}', 'video')"></video>`;
+                        carouselHTML = `<video src="${item.url}" class="timeline-video" muted autoplay playsinline loop onclick="window.openLightbox('${item.url}', '${escapedTitle}', 'video')"></video>`;
                     } else {
                         carouselHTML = `<img src="${item.url}" alt="" loading="lazy" style="cursor:pointer" onclick="window.openLightbox('${item.url}', '${escapedTitle}')">`;
                     }
@@ -745,14 +745,14 @@ function renderData(dataToRender) {
                     let indicatorsHTML = '';
                     mediaArray.forEach((item, idx) => {
                         if (item.type === 'video') {
-                            itemsHTML += `<video src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" muted loop onclick="window.openLightbox('${item.url}', '${escapedTitle}', 'video')"></video>`;
+                            itemsHTML += `<video src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" muted playsinline data-type="video" onclick="window.openLightbox('${item.url}', '${escapedTitle}', 'video')"></video>`;
                         } else {
-                            itemsHTML += `<img src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" loading="lazy" onclick="window.openLightbox('${item.url}', '${escapedTitle}')">`;
+                            itemsHTML += `<img src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" loading="lazy" data-type="image" onclick="window.openLightbox('${item.url}', '${escapedTitle}')">`;
                         }
                         indicatorsHTML += `<div class="indicator ${idx === 0 ? 'active' : ''}"></div>`;
                     });
                     carouselHTML = `
-                    <div class="carousel-container" style="min-height: 250px; border-radius: 8px; margin-top:15px; cursor:pointer;" data-interval="true">
+                    <div class="carousel-container" id="carousel-${recuerdo.id}" style="min-height: 250px; border-radius: 8px; margin-top:15px; cursor:pointer;" data-smart-carousel="true">
                         ${itemsHTML}
                         <div class="carousel-indicators">${indicatorsHTML}</div>
                     </div>`;
@@ -796,7 +796,7 @@ function renderData(dataToRender) {
                 if (mediaArray.length === 1) {
                     const item = mediaArray[0];
                     if (item.type === 'video') {
-                        galHTML = `<video src="${item.url}" class="gallery-video" muted onmouseenter="this.play()" onmouseleave="this.pause()" onclick="window.openLightbox('${item.url}', '${escapedTitle}', 'video')"></video>`;
+                        galHTML = `<video src="${item.url}" class="gallery-video" muted autoplay playsinline loop onclick="window.openLightbox('${item.url}', '${escapedTitle}', 'video')"></video>`;
                     } else {
                         galHTML = `<img src="${item.url}" alt="" loading="lazy" onclick="window.openLightbox('${item.url}', '${escapedTitle}')">`;
                     }
@@ -805,14 +805,14 @@ function renderData(dataToRender) {
                     let indicatorsHTML = '';
                     mediaArray.forEach((item, idx) => {
                         if (item.type === 'video') {
-                            itemsHTML += `<video src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" muted onclick="window.openLightbox('${item.url}', '${escapedTitle}', 'video')"></video>`;
+                            itemsHTML += `<video src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" muted playsinline data-type="video" onclick="window.openLightbox('${item.url}', '${escapedTitle}', 'video')"></video>`;
                         } else {
-                            itemsHTML += `<img src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" loading="lazy" onclick="window.openLightbox('${item.url}', '${escapedTitle}')">`;
+                            itemsHTML += `<img src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" loading="lazy" data-type="image" onclick="window.openLightbox('${item.url}', '${escapedTitle}')">`;
                         }
                         indicatorsHTML += `<div class="indicator ${idx === 0 ? 'active' : ''}"></div>`;
                     });
                     galHTML = `
-                    <div class="carousel-container" data-interval="true">
+                    <div class="carousel-container" id="gal-carousel-${recuerdo.id}" data-smart-carousel="true">
                         ${itemsHTML}
                         <div class="carousel-indicators">${indicatorsHTML}</div>
                     </div>`;
@@ -835,28 +835,72 @@ function renderData(dataToRender) {
         }
     });
 
-    // Lógica para que giren los carruseles solos
-    document.querySelectorAll('.carousel-container[data-interval="true"]').forEach(container => {
-        const images = container.querySelectorAll('.carousel-img, video.carousel-img');
-        const indicators = container.querySelectorAll('.indicator');
-        if (images.length > 1) {
-            let currentIndex = 0;
-            setInterval(() => {
-                images[currentIndex].classList.remove('active');
-                if (images[currentIndex].tagName === 'VIDEO') images[currentIndex].pause();
-                if (indicators[currentIndex]) indicators[currentIndex].classList.remove('active');
-
-                currentIndex = (currentIndex + 1) % images.length;
-
-                images[currentIndex].classList.add('active');
-                if (images[currentIndex].tagName === 'VIDEO') images[currentIndex].play();
-                if (indicators[currentIndex]) indicators[currentIndex].classList.add('active');
-            }, 3500); // 3.5 Segundos por slide
-        }
+    // Lógica para que giren los carruseles solos e inteligentes
+    document.querySelectorAll('.carousel-container[data-smart-carousel="true"]').forEach(container => {
+        iniciarCarruselInteligente(container);
     });
 
     // Activar observer para las nuevas tarjetas agregadas si es que hay scroll
     setTimeout(observeScroll, 100);
+}
+
+/**
+ * Gestiona un carrusel que espera a los videos antes de pasar.
+ */
+function iniciarCarruselInteligente(container) {
+    const items = container.querySelectorAll('.carousel-img');
+    const indicators = container.querySelectorAll('.indicator');
+    if (items.length <= 1) return;
+
+    let currentIndex = 0;
+    let timeout = null;
+
+    function nextSlide() {
+        if (timeout) clearTimeout(timeout);
+        
+        // Quitar estado anterior
+        const prevItem = items[currentIndex];
+        prevItem.classList.remove('active');
+        if (prevItem.tagName === 'VIDEO') {
+            prevItem.pause();
+            prevItem.onended = null;
+        }
+        if (indicators[currentIndex]) indicators[currentIndex].classList.remove('active');
+
+        // Calcular nuevo índice
+        currentIndex = (currentIndex + 1) % items.length;
+
+        // Activar nuevo ítem
+        const currentItem = items[currentIndex];
+        currentItem.classList.add('active');
+        if (indicators[currentIndex]) indicators[currentIndex].classList.add('active');
+
+        // Programar siguiente transición
+        if (currentItem.tagName === 'VIDEO') {
+            console.log("🎥 Reproduciendo video en carrusel...");
+            currentItem.currentTime = 0;
+            currentItem.muted = true; // El navegador requiere muted para autoplay
+            currentItem.play().catch(e => console.warn("Fallo autoplay clip:", e));
+            
+            // Cuando termine el video, pasar al siguiente instantáneamente
+            currentItem.onended = () => {
+                console.log("🎬 Video terminado, saltando slide.");
+                nextSlide();
+            };
+        } else {
+            // Si es imagen, esperar 4 segundos
+            timeout = setTimeout(nextSlide, 4500);
+        }
+    }
+
+    // Iniciar el temporizador para el primer elemento si es imagen
+    const firstItem = items[0];
+    if (firstItem.tagName === 'VIDEO') {
+        firstItem.play().catch(e => console.warn("Fallo autoplay inicial:", e));
+        firstItem.onended = () => nextSlide();
+    } else {
+        timeout = setTimeout(nextSlide, 4500);
+    }
 }
 
 // ==========================================
