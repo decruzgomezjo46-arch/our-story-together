@@ -125,10 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupLightbox();
     createFloatingHearts();
 
-    // Verificación de protocolo local
-    if (window.location.protocol === 'file:') {
-        alert("⚠️ ATENCIÓN: Estás abriendo el archivo localmente (file://). Para que la compresión de video y la subida funcionen, necesitas usar un servidor local (ej: Live Server de VS Code o npx serve). De lo contrario, los videos no podrán procesarse.");
-    }
+    // Cargar datos
 
     // Cargar datos
     if (isFirebaseConfigured) {
@@ -461,47 +458,12 @@ function resizeAndCompressImage(file, maxWidth = 800) {
     });
 }
 
-// Lógica de FFmpeg para comprimir video
-let ffmpeg = null;
-async function compressVideo(file) {
-    console.log("🎬 Iniciando compresión de video...");
-    const { FFmpeg } = FFmpegWASM;
-    const { fetchFile, toBlobURL } = FFmpegUtil;
-
-    try {
-        if (!ffmpeg) {
-            console.log("⚙️ Cargando librería FFmpeg (30MB aprox)...");
-            ffmpeg = new FFmpeg();
-            // Usamos una versión específica del núcleo para mayor estabilidad
-            const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-            await ffmpeg.load({
-                coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-                wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-            });
-            console.log("✅ FFmpeg cargado!");
-        }
-
-        const inputName = 'input.mp4';
-        const outputName = 'output.mp4';
-        
-        await ffmpeg.writeFile(inputName, await fetchFile(file));
-        console.log("⏳ Procesando video (esto puede tardar unos segundos)...");
-        
-        // Comando optimizado: 480p para máximo ahorro
-        await ffmpeg.exec(['-i', inputName, '-vf', 'scale=-2:480', '-vcodec', 'libx264', '-crf', '28', '-preset', 'ultrafast', outputName]);
-
-        const data = await ffmpeg.readFile(outputName);
-        console.log("✨ Video comprimido con éxito!");
-        return new Blob([data.buffer], { type: 'video/mp4' });
-    } catch (error) {
-        console.error("❌ Error en compresión:", error);
-        throw error;
-    }
-}
-
 async function uploadToCloudinary(blob, fileName, type) {
     console.log(`☁️ Subiendo ${type} a Cloudinary: ${fileName}`);
     const resourceType = type === 'video' ? 'video' : 'image';
+    
+    // Al usar Cloudinary, podemos añadir parámetros de optimización en la subida si fuera necesario,
+    // pero el "Unsigned Upload Preset" ya puede tener estas reglas configuradas.
     const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`;
 
     const formData = new FormData();
@@ -520,7 +482,7 @@ async function uploadToCloudinary(blob, fileName, type) {
     }
 
     const data = await response.json();
-    console.log("✅ Subido a Cloudinary:", data.secure_url);
+    console.log("✅ Subido a Cloudinary exitosamente:", data.secure_url);
     return data.secure_url;
 }
 
@@ -668,18 +630,8 @@ function setupForm() {
                     if (item.type === 'image') {
                         saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Optimizando foto...`;
                         blob = await resizeAndCompressImage(item.file);
-                    } else if (item.type === 'video') {
-                        saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Comprimiendo video...`;
-                        try {
-                            // Timeout de 30 segundos para la compresión, si falla, subimos original
-                            const compressionPromise = compressVideo(item.file);
-                            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject('timeout'), 35000));
-                            blob = await Promise.race([compressionPromise, timeoutPromise]);
-                        } catch (e) {
-                            console.warn("⚠️ Compresión lenta o fallida. Subiendo video original...", e);
-                            blob = item.file;
-                        }
                     }
+                    // Para videos, Cloudinary se encarga de la optimización al recibir el original
                     
                     saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Subiendo a la nube (Cloudinary)...`;
                     let url;
