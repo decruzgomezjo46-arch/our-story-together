@@ -25,7 +25,10 @@ if (typeof window === 'undefined') {
                         headers: newHeaders,
                     });
                 })
-                .catch((e) => console.error(e))
+                .catch((e) => {
+                    console.error("COI Service Worker fetch error:", e);
+                    throw e; 
+                })
         );
     });
 } else {
