@@ -290,6 +290,14 @@ function setupDragAndDrop() {
 
     async function handleFiles(files) {
         if (!files.length) return;
+        
+        // Bloquear botón de envío mientras se procesan archivos
+        const saveBtn = document.querySelector('.btn-submit');
+        if(saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Procesando archivos...';
+        }
+
         dropArea.style.display = 'none';
         previewContainer.style.display = 'flex';
 
@@ -307,14 +315,13 @@ function setupDragAndDrop() {
 
             try {
                 if (isImage) {
-                    const compressedBase64 = await resizeAndCompressImage(file);
+                    const compressedBlob = await resizeAndCompressImage(file);
                     currentMediaArray.push({
-                        file: file, // Guardamos el original por si acaso o el blob
+                        file: file, 
                         type: 'image',
-                        data: compressedBase64 // Base64 para previsualización inmediata
+                        data: URL.createObjectURL(compressedBlob) // Usar URL de objeto para previsualización
                     });
                 } else if (isVideo) {
-                    // Previsualización de video (primer frame)
                     const videoPreview = await getVideoThumbnail(file);
                     currentMediaArray.push({
                         file: file,
@@ -326,6 +333,18 @@ function setupDragAndDrop() {
             } catch (err) {
                 console.error("Error al procesar archivo:", err);
             }
+        }
+
+        // Restaurar botón de envío
+        if(saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = 'Guardar para siempre <i class="fa-solid fa-heart"></i>';
+        }
+
+        // Si no se pudo cargar nada, volver a mostrar el área de drop
+        if (currentMediaArray.length === 0) {
+            dropArea.style.display = 'block';
+            previewContainer.style.display = 'none';
         }
     }
 }
@@ -366,6 +385,7 @@ async function getVideoThumbnail(file) {
                 resolve(dataUrl);
             } catch (e) {
                 console.error("❌ Error capturando frame:", e);
+                resolve('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=');
             }
         };
 
