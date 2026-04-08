@@ -1029,12 +1029,12 @@ function setupBirthdayLock() {
 
         // Si es el día de cumpleaños, desbloquear automáticamente simulando sorpresa
         if (now.getMonth() === 3 && now.getDate() === 12) {
-            massiveTimer.innerHTML = "¡Feliz Cumpleaños mi amor! 🎉";
-            massiveTimer.style.fontSize = window.innerWidth < 768 ? "2rem" : "4rem";
+            massiveTimer.innerHTML = "¡Feliz Cumpleaños mi amor! 🎉<br><span style='font-size: 0.6em; color: white;'>Ve afuera de tu casa... 💐</span>";
+            massiveTimer.style.fontSize = window.innerWidth < 768 ? "1.8rem" : "3.5rem";
             massiveTimer.style.color = "var(--accent-color)";
             if(!devUnlocked) {
-                // Al llegar el momento, se queda congelado 3 segundos para celebrar, y desbloquea el sitio
-                setTimeout(unlockApp, 3500); 
+                // Al llegar el momento, se queda congelado 10 segundos leyendo la instrucción, y luego desbloquea la galería de recuerdos
+                setTimeout(unlockApp, 10000); 
                 devUnlocked = true; // Impedir que se vuelva a bloquear en este F5
             }
             return;
