@@ -7,7 +7,7 @@
     --bg-color: #FCF9F2; /* Soft off-white */
     --text-main: #333333;
     --text-muted: #666666;
-    --card-bg: #FFFFFF;
+    --card-bg: rgba(255, 255, 255, 0.85);
     
     --font-heading: 'Playfair Display', serif;
     --font-body: 'Montserrat', sans-serif;
@@ -24,7 +24,7 @@
 
 body.dark-mode {
     --bg-color: #121212;
-    --card-bg: #1e1e1e;
+    --card-bg: rgba(30, 30, 30, 0.85);
     --text-main: #e0e0e0;
     --text-muted: #aaaaaa;
     --navbar-bg: rgba(18, 18, 18, 0.95);
@@ -104,6 +104,12 @@ h1, h2, h3, h4, .nav-brand {
     padding: 1.2rem 5%;
     z-index: 1000;
     box-shadow: 0 2px 15px rgba(0,0,0,0.05);
+    transition: transform 0.4s cubic-bezier(0.33, 1, 0.68, 1), background-color 0.3s ease;
+}
+
+.navbar.nav-hidden {
+    transform: translateY(-100%);
+    box-shadow: none;
 }
 
 .nav-brand {
@@ -326,11 +332,17 @@ h1, h2, h3, h4, .nav-brand {
 .timeline-card {
     padding: 25px;
     background: var(--card-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
     position: relative;
     border-radius: var(--border-radius);
     box-shadow: var(--shadow);
     transition: var(--transition);
     border-top: 4px solid var(--primary-color);
+}
+body.dark-mode .timeline-card {
+    border-color: rgba(255, 255, 255, 0.05);
 }
 .timeline-card:hover {
     transform: translateY(-5px);
@@ -438,6 +450,9 @@ h1, h2, h3, h4, .nav-brand {
 
 .modal-content {
     background-color: var(--card-bg);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
     margin: 5% auto 50px auto; /* Margen extra inferior para poder ver todo al scrollear */
     padding: 40px;
     width: 90%;

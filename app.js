@@ -124,6 +124,8 @@ document.addEventListener('DOMContentLoaded', () => {
     setupForm();
     setupLightbox();
     createFloatingHearts();
+    setupSmartNavbar();
+    setupBirthdayCountdown();
 
     // Cargar datos
 
@@ -965,3 +967,71 @@ window.showToast = function (message) {
         setTimeout(() => toast.remove(), 400); // 400ms es lo que dura la transición CSS
     }, 3000);
 }
+
+// ==========================================
+// 🎁 CUENTA REGRESIVA DE CUMPLEAÑOS
+// ==========================================
+function setupBirthdayCountdown() {
+    const el = document.getElementById("birthday-text");
+    const container = document.getElementById("birthday-countdown");
+    if (!el || !container) return;
+
+    function update() {
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        // Cumpleaños: 12 de Abril
+        let bday = new Date(currentYear, 3, 12, 0, 0, 0); // Mes 3 es Abril
+        
+        // Si ya pasó el 12 de abril este año, la meta es el del año siguiente
+        if (now > new Date(currentYear, 3, 13, 0, 0, 0)) {
+            bday.setFullYear(currentYear + 1);
+        }
+
+        const diff = bday - now;
+
+        // ¿Es hoy el cumpleaños? (12 de Abril)
+        if (now.getMonth() === 3 && now.getDate() === 12) {
+            el.innerHTML = "¡Feliz Cumpleaños mi amor! 🎉🎂🎁";
+            container.style.background = "linear-gradient(45deg, rgba(212, 175, 55, 0.3), rgba(114, 47, 55, 0.3))";
+            container.style.borderColor = "var(--primary-color)";
+            return;
+        }
+
+        const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const s = Math.floor((diff % (1000 * 60)) / 1000);
+
+        el.innerText = `Faltan ${d}d ${h}h ${m}m ${s}s para tu cumpleaños ✨`;
+    }
+
+    update();
+    setInterval(update, 1000);
+}
+
+// ==========================================
+// 🧭 NAVBAR INTELIGENTE (SCROLL HIDE)
+// ==========================================
+function setupSmartNavbar() {
+    let lastScrollY = window.scrollY;
+    const navbar = document.querySelector('.navbar');
+
+    if (!navbar) return;
+
+    window.addEventListener('scroll', () => {
+        // En móviles, a veces el scroll elástico da valores negativos
+        if (window.scrollY <= 0) {
+            navbar.classList.remove('nav-hidden');
+            return;
+        }
+
+        // Si bajamos, ocultar. Si subimos, mostrar.
+        if (window.scrollY > lastScrollY && window.scrollY > 80) {
+            navbar.classList.add('nav-hidden');
+        } else {
+            navbar.classList.remove('nav-hidden');
+        }
+        lastScrollY = window.scrollY;
+    }, { passive: true });
+}
+
