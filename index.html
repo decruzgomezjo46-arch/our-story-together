@@ -40,6 +40,17 @@
 </head>
 
 <body>
+    <!-- Pantalla de Bloqueo a Pantalla Completa (Cumpleaños) -->
+    <div id="lock-screen" style="display: none;">
+        <div class="shooting-star star1"></div>
+        <div class="shooting-star star2"></div>
+        <div class="shooting-star star3"></div>
+        <div class="shooting-star star4"></div>
+        
+        <h2 class="lock-title">Hasta que llegue el momento... <i class="fa-solid fa-heart" id="secret-lock-btn" style="cursor: pointer;"></i></h2>
+        <div class="countdown-massive" id="massive-timer">00d 00h 00m 00s</div>
+    </div>
+
     <!-- Navbar -->
     <nav class="navbar">
         <div class="nav-brand">Amor Eterno</div>
@@ -67,11 +78,6 @@
                         <!-- Contador de Tiempo -->
                         <div class="love-counter" id="love-counter">
                             <i class="fa-solid fa-clock"></i> <span id="time-together">Llevamos 0 días juntos</span>
-                        </div>
-
-                        <!-- Contador de Cumpleaños -->
-                        <div class="love-counter" id="birthday-countdown" style="border-color: rgba(212, 175, 55, 0.5); background: rgba(212, 175, 55, 0.1);">
-                            <i class="fa-solid fa-cake-candles"></i> <span id="birthday-text">Calculando...</span>
                         </div>
 
                         <!-- Reproductor MP3 Simple -->

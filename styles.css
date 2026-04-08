@@ -1028,3 +1028,81 @@ video.carousel-img {
 .mini-preview .mini-video-icon {
     font-size: 1rem;
 }
+
+/* ==========================================
+   🔒 PANTALLA DE BLOQUEO (CUMPLEAÑOS)
+   ========================================== */
+#lock-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    font-family: var(--font-heading);
+    overflow: hidden;
+    transition: opacity 1s ease-in-out;
+}
+#lock-screen.unlocked {
+    opacity: 0;
+    pointer-events: none;
+}
+.lock-title {
+    font-size: 2rem;
+    margin-bottom: 2rem;
+    z-index: 10;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.4);
+    font-weight: normal;
+    letter-spacing: 1px;
+}
+.countdown-massive {
+    font-size: 6rem;
+    font-weight: bold;
+    z-index: 10;
+    text-align: center;
+    letter-spacing: 2px;
+    text-shadow: 0 0 20px rgba(212, 175, 55, 0.8), 0 0 40px rgba(212, 175, 55, 0.4);
+    font-family: var(--font-body); /* Números más limpios */
+}
+@media (max-width: 768px) {
+    .countdown-massive { font-size: 2.8rem; }
+    .lock-title { font-size: 1.5rem; text-align: center; padding: 0 20px;}
+}
+
+/* Estrellas fugaces puras en CSS */
+.shooting-star {
+    position: absolute;
+    width: 120px;
+    height: 2px;
+    background: linear-gradient(90deg, rgba(255,255,255, 0), rgba(255,255,255, 1));
+    animation: shooting 4s linear infinite;
+    transform: rotate(-45deg);
+    opacity: 0;
+}
+.shooting-star::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    right: 0;
+    width: 4px;
+    height: 4px;
+    background: white;
+    border-radius: 50%;
+    box-shadow: 0 0 15px 4px white;
+}
+@keyframes shooting {
+    0% { transform: rotate(-45deg) translateX(-100vw); opacity: 1; }
+    20% { transform: rotate(-45deg) translateX(50vw); opacity: 0; }
+    100% { transform: rotate(-45deg) translateX(50vw); opacity: 0; }
+}
+.star1 { top: 15%; left: 80%; animation-delay: 0s; }
+.star2 { top: 40%; left: 10%; animation-delay: 2.5s; }
+.star3 { top: 70%; left: 70%; animation-delay: 5.2s; }
+.star4 { top: 20%; left: 30%; animation-delay: 7s; }

@@ -125,7 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupLightbox();
     createFloatingHearts();
     setupSmartNavbar();
-    setupBirthdayCountdown();
+    setupBirthdayLock();
 
     // Cargar datos
 
@@ -969,31 +969,74 @@ window.showToast = function (message) {
 }
 
 // ==========================================
-// 🎁 CUENTA REGRESIVA DE CUMPLEAÑOS
+// 🔒 PANTALLA DE BLOQUEO Y CUMPLEAÑOS
 // ==========================================
-function setupBirthdayCountdown() {
-    const el = document.getElementById("birthday-text");
-    const container = document.getElementById("birthday-countdown");
-    if (!el || !container) return;
+function setupBirthdayLock() {
+    const lockScreen = document.getElementById("lock-screen");
+    const massiveTimer = document.getElementById("massive-timer");
+    const secretBtn = document.getElementById("secret-lock-btn");
+    if (!lockScreen || !massiveTimer) return;
+
+    // Lógica del "Backdoor" para desarrolladores
+    let devClicks = 0;
+    let devUnlocked = sessionStorage.getItem('devUnlocked') === 'true';
+
+    if (secretBtn) {
+        secretBtn.addEventListener('click', () => {
+            devClicks++;
+            if (devClicks >= 3) {
+                devClicks = 0; // Reiniciar contador
+                const pw = prompt("Modo Desarrollador. Ingresa la contraseña de pase:");
+                if (pw === "Nuestroamorperdura") {
+                    sessionStorage.setItem('devUnlocked', 'true');
+                    devUnlocked = true;
+                    unlockApp();
+                    window.showToast("🔓 Acceso de Desarrollador Concedido");
+                } else {
+                    alert("❌ Contraseña Incorrecta");
+                }
+            }
+        });
+    }
+
+    function unlockApp() {
+        lockScreen.classList.add('unlocked');
+        document.body.style.overflow = "auto"; // Restaurar scroll
+        setTimeout(() => lockScreen.style.display = "none", 1000);
+    }
+
+    function lockApp() {
+        if (!devUnlocked) {
+            lockScreen.style.display = "flex";
+            document.body.style.overflow = "hidden"; // Deshabilita scroll
+        } else {
+            lockScreen.style.display = "none";
+            document.body.style.overflow = "auto";
+        }
+    }
 
     function update() {
         const now = new Date();
         const currentYear = now.getFullYear();
         // Cumpleaños: 12 de Abril
-        let bday = new Date(currentYear, 3, 12, 0, 0, 0); // Mes 3 es Abril
+        let bday = new Date(currentYear, 3, 12, 0, 0, 0); 
         
-        // Si ya pasó el 12 de abril este año, la meta es el del año siguiente
         if (now > new Date(currentYear, 3, 13, 0, 0, 0)) {
             bday.setFullYear(currentYear + 1);
         }
 
         const diff = bday - now;
 
-        // ¿Es hoy el cumpleaños? (12 de Abril)
+        // Si es el día de cumpleaños, desbloquear automáticamente simulando sorpresa
         if (now.getMonth() === 3 && now.getDate() === 12) {
-            el.innerHTML = "¡Feliz Cumpleaños mi amor! 🎉🎂🎁";
-            container.style.background = "linear-gradient(45deg, rgba(212, 175, 55, 0.3), rgba(114, 47, 55, 0.3))";
-            container.style.borderColor = "var(--primary-color)";
+            massiveTimer.innerHTML = "¡Feliz Cumpleaños mi amor! 🎉";
+            massiveTimer.style.fontSize = window.innerWidth < 768 ? "2rem" : "4rem";
+            massiveTimer.style.color = "var(--accent-color)";
+            if(!devUnlocked) {
+                // Al llegar el momento, se queda congelado 3 segundos para celebrar, y desbloquea el sitio
+                setTimeout(unlockApp, 3500); 
+                devUnlocked = true; // Impedir que se vuelva a bloquear en este F5
+            }
             return;
         }
 
@@ -1002,11 +1045,17 @@ function setupBirthdayCountdown() {
         const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
         const s = Math.floor((diff % (1000 * 60)) / 1000);
 
-        el.innerText = `Faltan ${d}d ${h}h ${m}m ${s}s para tu cumpleaños ✨`;
+        massiveTimer.innerText = `${d.toString().padStart(2, '0')}d ${h.toString().padStart(2, '0')}h ${m.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`;
     }
 
+    lockApp();
     update();
-    setInterval(update, 1000);
+    // Actualizar 1 vez por segundo solo si está bloqueado, para ahorrar batería si está desbloqueado
+    setInterval(() => {
+        if (!devUnlocked || (now => now.getMonth() === 3 && now.getDate() === 12)()) {
+            update();
+        }
+    }, 1000);
 }
 
 // ==========================================
