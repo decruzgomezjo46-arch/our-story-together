@@ -5,6 +5,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nuestra Historia del Amor</title>
+    
+    <script>
+        // 🧹 Limpieza de Service Workers antiguos para corregir videos en negro en F5
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for(let registration of registrations) {
+                    registration.unregister();
+                    console.log('✅ Service Worker antiguo desinstalado.');
+                }
+            });
+        }
+        // Limpiar rastro de COI
+        sessionStorage.removeItem('coiReloaded');
+    </script>
+
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

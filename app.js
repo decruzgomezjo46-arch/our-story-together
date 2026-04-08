@@ -736,7 +736,7 @@ function renderData(dataToRender) {
                 if (mediaArray.length === 1) {
                     const item = mediaArray[0];
                     if (item.type === 'video') {
-                        carouselHTML = `<video src="${item.url}" class="timeline-video" muted autoplay playsinline loop onclick="window.openLightbox('${item.url}', '${escapedTitle}', 'video')"></video>`;
+                        carouselHTML = `<video src="${item.url}" class="timeline-video" muted autoplay playsinline loop preload="metadata" onclick="window.openLightbox('${item.url}', '${escapedTitle}', 'video')"></video>`;
                     } else {
                         carouselHTML = `<img src="${item.url}" alt="" loading="lazy" style="cursor:pointer" onclick="window.openLightbox('${item.url}', '${escapedTitle}')">`;
                     }
@@ -745,7 +745,7 @@ function renderData(dataToRender) {
                     let indicatorsHTML = '';
                     mediaArray.forEach((item, idx) => {
                         if (item.type === 'video') {
-                            itemsHTML += `<video src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" muted playsinline data-type="video" onclick="window.openLightbox('${item.url}', '${escapedTitle}', 'video')"></video>`;
+                            itemsHTML += `<video src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" muted playsinline preload="metadata" data-type="video" onclick="window.openLightbox('${item.url}', '${escapedTitle}', 'video')"></video>`;
                         } else {
                             itemsHTML += `<img src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" loading="lazy" data-type="image" onclick="window.openLightbox('${item.url}', '${escapedTitle}')">`;
                         }
@@ -796,7 +796,7 @@ function renderData(dataToRender) {
                 if (mediaArray.length === 1) {
                     const item = mediaArray[0];
                     if (item.type === 'video') {
-                        galHTML = `<video src="${item.url}" class="gallery-video" muted autoplay playsinline loop onclick="window.openLightbox('${item.url}', '${escapedTitle}', 'video')"></video>`;
+                        galHTML = `<video src="${item.url}" class="gallery-video" muted autoplay playsinline loop preload="metadata" onclick="window.openLightbox('${item.url}', '${escapedTitle}', 'video')"></video>`;
                     } else {
                         galHTML = `<img src="${item.url}" alt="" loading="lazy" onclick="window.openLightbox('${item.url}', '${escapedTitle}')">`;
                     }
