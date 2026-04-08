@@ -627,6 +627,12 @@ function setupForm() {
 
                 // Proceso de compresión y subida
                 for (const item of currentMediaArray) {
+                    // Si el archivo ya está subido a la nube (es decir, estamos editando un recuerdo), retener los datos originales
+                    if (item.url && !item.file) {
+                        filesToUpload.push({ url: item.url, type: item.type });
+                        continue;
+                    }
+
                     let blob = item.file; // Por defecto el original
 
                     if (item.type === 'image') {
