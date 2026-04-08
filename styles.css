@@ -1047,11 +1047,12 @@ video.carousel-img {
     color: white;
     font-family: var(--font-heading);
     overflow: hidden;
-    transition: opacity 1s ease-in-out;
+    transition: opacity 2s ease-in-out, transform 2s ease;
 }
 #lock-screen.unlocked {
     opacity: 0;
     pointer-events: none;
+    transform: scale(1.1);
 }
 .lock-title {
     font-size: 2rem;

@@ -977,6 +977,14 @@ function setupBirthdayLock() {
     const secretBtn = document.getElementById("secret-lock-btn");
     if (!lockScreen || !massiveTimer) return;
 
+    // 🌟 MODO PRUEBA: Cambia a "false" para el día real. Si es "true", el contador dura 30 segundos exactos.
+    const MODO_PRUEBA = true; 
+    let testBdayDate = null;
+    if (MODO_PRUEBA) {
+        testBdayDate = new Date();
+        testBdayDate.setSeconds(testBdayDate.getSeconds() + 30);
+    }
+
     // Lógica del "Backdoor" para desarrolladores
     let devClicks = 0;
     let devUnlocked = sessionStorage.getItem('devUnlocked') === 'true';
@@ -1002,7 +1010,7 @@ function setupBirthdayLock() {
     function unlockApp() {
         lockScreen.classList.add('unlocked');
         document.body.style.overflow = "auto"; // Restaurar scroll
-        setTimeout(() => lockScreen.style.display = "none", 1000);
+        setTimeout(() => lockScreen.style.display = "none", 2500); // Dar tiempo a la animación CSS de 2s
     }
 
     function lockApp() {
@@ -1015,27 +1023,58 @@ function setupBirthdayLock() {
         }
     }
 
+    function burstHearts() {
+        for (let i = 0; i < 60; i++) {
+            const heart = document.createElement('i');
+            heart.classList.add('fa-solid', 'fa-heart', 'floating-heart');
+            heart.style.left = `${Math.random() * 100}%`;
+            heart.style.fontSize = `${Math.random() * 2 + 1.5}rem`;
+            heart.style.animationDuration = `${Math.random() * 3 + 2}s`;
+            heart.style.color = Math.random() > 0.5 ? 'var(--accent-color)' : 'white';
+            heart.style.zIndex = '10001'; // Por encima de todo
+            lockScreen.appendChild(heart);
+        }
+    }
+
+    let surpriseTriggered = false;
+
     function update() {
         const now = new Date();
-        const currentYear = now.getFullYear();
-        // Cumpleaños: 12 de Abril
-        let bday = new Date(currentYear, 3, 12, 0, 0, 0); 
+        let bday;
         
-        if (now > new Date(currentYear, 3, 13, 0, 0, 0)) {
-            bday.setFullYear(currentYear + 1);
+        if (MODO_PRUEBA && testBdayDate) {
+            bday = testBdayDate;
+        } else {
+            const currentYear = now.getFullYear();
+            bday = new Date(currentYear, 3, 12, 0, 0, 0); // 12 de Abril
+            if (now > new Date(currentYear, 3, 13, 0, 0, 0)) {
+                bday.setFullYear(currentYear + 1);
+            }
         }
 
         const diff = bday - now;
+        const isBirthday = (!MODO_PRUEBA && now.getMonth() === 3 && now.getDate() === 12) || (MODO_PRUEBA && diff <= 0);
 
-        // Si es el día de cumpleaños, desbloquear automáticamente simulando sorpresa
-        if (now.getMonth() === 3 && now.getDate() === 12) {
-            massiveTimer.innerHTML = "¡Feliz Cumpleaños mi amor! 🎉<br><span style='font-size: 0.6em; color: white;'>Ve afuera de tu casa... 💐</span>";
-            massiveTimer.style.fontSize = window.innerWidth < 768 ? "1.8rem" : "3.5rem";
-            massiveTimer.style.color = "var(--accent-color)";
-            if(!devUnlocked) {
-                // Al llegar el momento, se queda congelado 10 segundos leyendo la instrucción, y luego desbloquea la galería de recuerdos
-                setTimeout(unlockApp, 10000); 
-                devUnlocked = true; // Impedir que se vuelva a bloquear en este F5
+        // Si es el momento mágico...
+        if (isBirthday) {
+            if (!surpriseTriggered) {
+                surpriseTriggered = true;
+                massiveTimer.innerHTML = "¡Feliz Cumpleaños mi amor! 🎉<br><span style='font-size: 0.6em; color: white;'>Ve afuera de tu casa... 💐</span>";
+                massiveTimer.style.fontSize = window.innerWidth < 768 ? "1.8rem" : "3.5rem";
+                massiveTimer.style.color = "var(--accent-color)";
+                
+                // Activar música romántica y explosión de corazones 🎉
+                const audio = document.getElementById("bg-audio");
+                if (audio) {
+                    audio.play().catch(e => console.log("El navegador bloqueó el autoplay del audio."));
+                }
+                burstHearts();
+
+                if(!devUnlocked) {
+                    // Esperar 12 segundos para que lea la instrucción y disfrute la música antes de desvanecerse
+                    setTimeout(unlockApp, 12000); 
+                    devUnlocked = true;
+                }
             }
             return;
         }
