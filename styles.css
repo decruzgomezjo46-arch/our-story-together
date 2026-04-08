@@ -355,13 +355,13 @@ body.dark-mode .timeline-card {
     font-weight: 600;
     margin-bottom: 8px;
     display: block;
+    padding-right: 80px; /* Evitar que lo tapen los botones flotantes */
 }
 
 .timeline-title {
     font-size: 1.5rem;
     color: var(--primary-dark);
     margin-bottom: 10px;
-    padding-right: 80px; /* Evitar solapamiento con botones de acción */
 }
 
 .timeline-content {
@@ -755,6 +755,28 @@ input[type="file"] { display: none; }
     .timeline-item { width: 100%; padding-left: 70px; padding-right: 25px; }
     .timeline-item.right { left: 0%; }
     .timeline-item.left::after, .timeline-item.right::after { left: 21px; }
+
+    /* Ajustes visuales de tamaño y compactación para celulares */
+    .timeline-card {
+        padding: 15px; /* Memorias menos gigantescas */
+    }
+    .timeline-title {
+        font-size: 1.25rem; /* Títulos menos aparatosos en móviles */
+    }
+    .timeline-date {
+        font-size: 0.8rem;
+        padding-right: 65px; /* Espacio justo para botones pequeños */
+    }
+    .card-actions {
+        top: 10px;
+        right: 10px;
+        gap: 5px;
+    }
+    .action-btn {
+        width: 30px;
+        height: 30px;
+        font-size: 0.85rem;
+    }
 }
 
 /* Floating Hearts Animation */
