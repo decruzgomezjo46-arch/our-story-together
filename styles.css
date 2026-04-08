@@ -349,6 +349,7 @@ h1, h2, h3, h4, .nav-brand {
     font-size: 1.5rem;
     color: var(--primary-dark);
     margin-bottom: 10px;
+    padding-right: 80px; /* Evitar solapamiento con botones de acción */
 }
 
 .timeline-content {
@@ -707,8 +708,26 @@ input[type="file"] { display: none; }
 
 /* Responsiveness */
 @media screen and (max-width: 768px) {
+    .navbar {
+        flex-direction: column;
+        padding: 10px 5%;
+        gap: 10px;
+    }
+    .nav-brand {
+        font-size: 1.5rem;
+    }
     .nav-links {
-        display: none; /* In a real app we'd add a hamburger menu */
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 10px;
+    }
+    .nav-links li a {
+        font-size: 0.85rem;
+    }
+    .nav-btn {
+        padding: 6px 12px;
+        font-size: 0.85rem;
     }
     
     .hero-title { font-size: 2.8rem; }
@@ -832,10 +851,12 @@ input[type="file"] { display: none; }
     height: 100%;
     object-fit: cover;
     opacity: 0;
+    pointer-events: none; /* Evitar que atrapen clics si están transparentes */
     transition: opacity 1s ease-in-out, transform 0.5s ease;
 }
 .carousel-img.active {
     opacity: 1;
+    pointer-events: auto; /* Solo la imagen principal recibe el clic */
 }
 .carousel-indicators {
     position: absolute;
