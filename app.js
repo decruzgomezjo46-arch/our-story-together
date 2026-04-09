@@ -114,6 +114,16 @@ function setupDarkMode() {
 // 🚀 INICIALIZACIÓN Y CARGA DE DATOS
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => {
+    // 🧹 Limpieza y Parches de Seguridad
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+            for(let registration of registrations) {
+                registration.unregister();
+                console.log('✅ Service Worker antiguo (coi-serviceworker) desinstalado correctamente.');
+            }
+        });
+    }
+
     // Configurar nuevas funciones
     updateCounter();
     setInterval(updateCounter, 1000 * 60 * 60); // Actualizar cada hora
@@ -126,8 +136,6 @@ document.addEventListener('DOMContentLoaded', () => {
     createFloatingHearts();
     setupSmartNavbar();
     setupBirthdayLock();
-
-    // Cargar datos
 
     // Cargar datos
     if (isFirebaseConfigured) {
@@ -241,7 +249,11 @@ function setupLightbox() {
 
     if (!lightbox) return;
 
-    closeBtn.onclick = () => lightbox.style.display = "none";
+    closeBtn.onclick = () => {
+        lightbox.style.display = "none";
+        const video = document.getElementById('lightbox-video');
+        if(video) video.pause();
+    };
     window.openLightbox = function (src, title, type = 'image') {
         const img = document.getElementById('lightbox-img');
         const video = document.getElementById('lightbox-video');
@@ -253,7 +265,7 @@ function setupLightbox() {
             video.play();
         } else {
             video.style.display = 'none';
-            video.play(); // Detener video si estaba sonando
+            video.pause(); // Detener video si estaba sonando
             img.style.display = 'block';
             img.src = src;
         }
@@ -730,6 +742,20 @@ function renderData(dataToRender) {
             else if (recuerdo.foto) mediaArray = [{ url: recuerdo.foto, type: 'image' }];
         }
 
+        // Optimizar y transcodificar recursos multimedia de Cloudinary de forma inteligente
+        mediaArray = mediaArray.map(item => {
+            let optUrl = item.url;
+            if (optUrl && typeof optUrl === 'string' && optUrl.includes('res.cloudinary.com') && optUrl.includes('/upload/') && !optUrl.includes('q_auto')) {
+                const isVideo = item.type === 'video' || optUrl.match(/\.(mp4|webm|mov|mkv)$/i);
+                if (isVideo) {
+                    optUrl = optUrl.replace('/upload/', '/upload/q_auto,f_mp4,vc_h264/');
+                } else {
+                    optUrl = optUrl.replace('/upload/', '/upload/q_auto,f_auto/');
+                }
+            }
+            return { ...item, url: optUrl, type: item.type || (optUrl.match(/\.(mp4|webm|mov|mkv)$/i) ? 'video' : 'image') };
+        });
+
         // Render Timeline
         if (recuerdo.tipo === 'ambos' || recuerdo.tipo === 'historia' || recuerdo.tipo === 'video') {
             const dateObj = new Date(recuerdo.fecha + 'T00:00:00');
@@ -888,7 +914,11 @@ function iniciarCarruselInteligente(container) {
             console.log("🎥 Reproduciendo video en carrusel...");
             currentItem.currentTime = 0;
             currentItem.muted = true; // El navegador requiere muted para autoplay
-            currentItem.play().catch(e => console.warn("Fallo autoplay clip:", e));
+            currentItem.play().catch(e => {
+                console.warn("Fallo autoplay clip:", e);
+                // Fallback si el dispositivo bloquea el video por ahorro de energía
+                timeout = setTimeout(nextSlide, 4500);
+            });
             
             // Cuando termine el video, pasar al siguiente instantáneamente
             currentItem.onended = () => {
@@ -904,7 +934,11 @@ function iniciarCarruselInteligente(container) {
     // Iniciar el temporizador para el primer elemento si es imagen
     const firstItem = items[0];
     if (firstItem.tagName === 'VIDEO') {
-        firstItem.play().catch(e => console.warn("Fallo autoplay inicial:", e));
+        firstItem.muted = true;
+        firstItem.play().catch(e => {
+            console.warn("Fallo autoplay inicial:", e);
+            timeout = setTimeout(nextSlide, 4500);
+        });
         firstItem.onended = () => nextSlide();
     } else {
         timeout = setTimeout(nextSlide, 4500);
@@ -1045,60 +1079,70 @@ function setupBirthdayLock() {
     let surpriseTriggered = false;
 
     function update() {
-        const now = new Date();
-        let bday;
-        
-        if (MODO_PRUEBA && testBdayDate) {
-            bday = testBdayDate;
-        } else {
-            const currentYear = now.getFullYear();
-            bday = new Date(currentYear, 3, 12, 0, 0, 0); // 12 de Abril
-            if (now > new Date(currentYear, 3, 13, 0, 0, 0)) {
-                bday.setFullYear(currentYear + 1);
-            }
-        }
-
-        const diff = bday - now;
-        const isBirthday = (!MODO_PRUEBA && now.getMonth() === 3 && now.getDate() === 12) || (MODO_PRUEBA && diff <= 0);
-
-        // Si es el momento mágico...
-        if (isBirthday) {
-            if (!surpriseTriggered) {
-                surpriseTriggered = true;
-                massiveTimer.innerHTML = "¡Feliz Cumpleaños mi amor! 🎉<br><span style='font-size: 0.6em; color: white;'>Ve afuera de tu casa... 💐</span>";
-                massiveTimer.style.fontSize = window.innerWidth < 768 ? "1.8rem" : "3.5rem";
-                massiveTimer.style.color = "var(--accent-color)";
-                
-                // Activar música romántica y explosión de corazones 🎉
-                const audio = document.getElementById("bg-audio");
-                if (audio) {
-                    audio.play().catch(e => console.log("El navegador bloqueó el autoplay del audio."));
-                }
-                burstHearts();
-
-                if(!devUnlocked) {
-                    // Esperar 12 segundos para que lea la instrucción y disfrute la música antes de desvanecerse
-                    setTimeout(unlockApp, 12000); 
-                    devUnlocked = true;
+        try {
+            const now = new Date();
+            let bday;
+            
+            if (MODO_PRUEBA && testBdayDate) {
+                bday = testBdayDate;
+            } else {
+                const currentYear = now.getFullYear();
+                bday = new Date(currentYear, 3, 12, 0, 0, 0); // 12 de Abril
+                if (now > new Date(currentYear, 3, 13, 0, 0, 0)) {
+                    bday.setFullYear(currentYear + 1);
                 }
             }
-            return;
+
+            const diff = bday - now;
+            const isBirthday = (!MODO_PRUEBA && now.getMonth() === 3 && now.getDate() === 12) || (MODO_PRUEBA && diff <= 0);
+
+            // Si es el momento mágico...
+            if (isBirthday) {
+                if (!surpriseTriggered) {
+                    surpriseTriggered = true;
+                    massiveTimer.innerHTML = "¡Feliz Cumpleaños mi amor! 🎉<br><span style='font-size: 0.6em; color: white;'>Ve afuera de tu casa... 💐</span>";
+                    massiveTimer.style.fontSize = window.innerWidth < 768 ? "1.8rem" : "3.5rem";
+                    massiveTimer.style.color = "var(--accent-color)";
+                    
+                    // Activar música romántica y explosión de corazones 🎉
+                    const audio = document.getElementById("bg-audio");
+                    if (audio) {
+                        audio.play().catch(e => console.log("El navegador bloqueó el autoplay del audio."));
+                    }
+                    burstHearts();
+
+                    if(!devUnlocked) {
+                        // Esperar 12 segundos para que lea la instrucción y disfrute la música antes de desvanecerse
+                        setTimeout(unlockApp, 12000); 
+                        devUnlocked = true;
+                    }
+                }
+                return;
+            }
+
+            const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const s = Math.floor((diff % (1000 * 60)) / 1000);
+
+            massiveTimer.innerText = `${d.toString().padStart(2, '0')}d ${h.toString().padStart(2, '0')}h ${m.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`;
+        } catch (e) {
+            console.error("Error silencioso en update:", e);
         }
-
-        const d = Math.floor(diff / (1000 * 60 * 60 * 24));
-        const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        const s = Math.floor((diff % (1000 * 60)) / 1000);
-
-        massiveTimer.innerText = `${d.toString().padStart(2, '0')}d ${h.toString().padStart(2, '0')}h ${m.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`;
     }
 
     lockApp();
     update();
     // Actualizar 1 vez por segundo solo si está bloqueado, para ahorrar batería si está desbloqueado
     setInterval(() => {
-        if (!devUnlocked || (now => now.getMonth() === 3 && now.getDate() === 12)()) {
-            update();
+        try {
+            const currentNow = new Date();
+            // Asegurar que getMonth existe, por si el navegador inyecta proxies raros
+            if (!devUnlocked || (currentNow && typeof currentNow.getMonth === 'function' && currentNow.getMonth() === 3 && currentNow.getDate() === 12)) {
+                update();
+            }
+        } catch (e) {
+            // Ignorar errores esporádicos del intervalo
         }
     }, 1000);
 }
