@@ -1080,17 +1080,23 @@ function setupBirthdayLock() {
 
     function update() {
         try {
-            const now = new Date();
+            const now = new Date(); // Restaurar a fecha real
+            const END_CELEBRATION = new Date(2026, 3, 13, 0, 0, 0);
+
+            // Si ya pasamos la fecha de la sorpresa (13 de Abril en adelante), desbloquear la app permanentemente.
+            if (!MODO_PRUEBA && now >= END_CELEBRATION) {
+                devUnlocked = true;
+                lockScreen.style.display = "none";
+                document.body.style.overflow = "auto";
+                return true; // Señal de expirado para detener el bucle
+            }
+
             let bday;
             
             if (MODO_PRUEBA && testBdayDate) {
                 bday = testBdayDate;
             } else {
-                const currentYear = now.getFullYear();
-                bday = new Date(currentYear, 3, 12, 0, 0, 0); // 12 de Abril
-                if (now > new Date(currentYear, 3, 13, 0, 0, 0)) {
-                    bday.setFullYear(currentYear + 1);
-                }
+                bday = new Date(2026, 3, 12, 0, 0, 0); // Objetivo Fijo: 12 de Abril 2026
             }
 
             const diff = bday - now;
@@ -1132,14 +1138,19 @@ function setupBirthdayLock() {
     }
 
     lockApp();
-    update();
+    const isExpired = update();
+    
+    if (isExpired) return; // Si ya pasó la fecha, no iniciar timers en absoluto para ahorrar batería
+
     // Actualizar 1 vez por segundo solo si está bloqueado, para ahorrar batería si está desbloqueado
-    setInterval(() => {
+    let intervalId = setInterval(() => {
         try {
             const currentNow = new Date();
             // Asegurar que getMonth existe, por si el navegador inyecta proxies raros
             if (!devUnlocked || (currentNow && typeof currentNow.getMonth === 'function' && currentNow.getMonth() === 3 && currentNow.getDate() === 12)) {
-                update();
+                if (update() === true) {
+                    clearInterval(intervalId); // Destruir timer permanentemente el día 13
+                }
             }
         } catch (e) {
             // Ignorar errores esporádicos del intervalo
