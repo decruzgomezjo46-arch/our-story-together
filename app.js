@@ -73,7 +73,9 @@ function updateCounter() {
 
 function setupAudio() {
     const audio = document.getElementById('bg-audio');
-    const audioBtn = document.getElementById('audio-btn');
+    const audioBtn = document.getElementById('audio-toggle-btn');
+    const audioText = document.getElementById('audio-text-nav');
+    
     if (!audio || !audioBtn) return;
 
     // Audio initial state
@@ -81,12 +83,20 @@ function setupAudio() {
 
     audioBtn.addEventListener('click', () => {
         if (audio.paused) {
-            audio.play();
-            audioBtn.innerHTML = '<i class="fa-solid fa-pause"></i> Pausar Canción';
+            audio.play().catch(e => console.log('El navegador silenció el video', e));
+            audioBtn.innerHTML = '<i class="fa-solid fa-pause"></i> <span id="audio-text-nav">Pausar</span>';
         } else {
             audio.pause();
-            audioBtn.innerHTML = '<i class="fa-solid fa-play"></i> Nuestra Canción';
+            audioBtn.innerHTML = '<i class="fa-solid fa-music"></i> <span id="audio-text-nav">Música</span>';
         }
+    });
+
+    // Inyectar evento para sincronizar si el audio se reproduce desde otro lado
+    audio.addEventListener('play', () => {
+        if(audioBtn) audioBtn.innerHTML = '<i class="fa-solid fa-pause"></i> <span id="audio-text-nav">Pausar</span>';
+    });
+    audio.addEventListener('pause', () => {
+        if(audioBtn) audioBtn.innerHTML = '<i class="fa-solid fa-music"></i> <span id="audio-text-nav">Música</span>';
     });
 }
 
@@ -1053,11 +1063,11 @@ function setupBirthdayLock() {
     if (!lockScreen || !massiveTimer) return;
 
     // 🌟 MODO PRUEBA: Cambia a "false" para el día real. Si es "true", el contador dura 30 segundos exactos.
-    const MODO_PRUEBA = false; 
+    const MODO_PRUEBA = true; 
     let testBdayDate = null;
     if (MODO_PRUEBA) {
         testBdayDate = new Date();
-        testBdayDate.setSeconds(testBdayDate.getSeconds() + 30);
+        testBdayDate.setSeconds(testBdayDate.getSeconds() + 15);
     }
 
     // Lógica del "Backdoor" para desarrolladores
@@ -1100,12 +1110,13 @@ function setupBirthdayLock() {
 
     function burstHearts() {
         for (let i = 0; i < 60; i++) {
-            const heart = document.createElement('i');
-            heart.classList.add('fa-solid', 'fa-heart', 'floating-heart');
+            const heart = document.createElement('span');
+            heart.classList.add('floating-heart');
+            // Easter egg: 5% de probabilidad de ser una tortuguita 🐢
+            heart.innerText = Math.random() > 0.95 ? '🐢' : '💗';
             heart.style.left = `${Math.random() * 100}%`;
             heart.style.fontSize = `${Math.random() * 2 + 1.5}rem`;
             heart.style.animationDuration = `${Math.random() * 3 + 2}s`;
-            heart.style.color = Math.random() > 0.5 ? 'var(--accent-color)' : 'white';
             heart.style.zIndex = '10001'; // Por encima de todo
             lockScreen.appendChild(heart);
         }
@@ -1148,6 +1159,11 @@ function setupBirthdayLock() {
                     // Activar música romántica y explosión de corazones 🎉
                     const audio = document.getElementById("bg-audio");
                     if (audio) {
+                        // Forzar el loop absoluto de la pista en caso de que el celular se apague/hiberne
+                        audio.addEventListener('ended', function() {
+                            this.currentTime = 0;
+                            this.play().catch(e => console.log('Loop interrumpido', e));
+                        });
                         audio.play().catch(e => console.log("El navegador bloqueó el autoplay del audio."));
                     }
                     burstHearts();

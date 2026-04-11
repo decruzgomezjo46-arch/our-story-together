@@ -5,12 +5,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nuestra Historia del Amor</title>
-    
+
     <script>
         // 🧹 Limpieza de Service Workers antiguos para corregir videos en negro en F5
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                for(let registration of registrations) {
+            navigator.serviceWorker.getRegistrations().then(function (registrations) {
+                for (let registration of registrations) {
                     registration.unregister();
                     console.log('✅ Service Worker antiguo desinstalado.');
                 }
@@ -34,7 +34,7 @@
     <!-- Firebase Compat Libraries (Soporte local sin servidor) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-    
+
     <!-- Lógica de la APP -->
     <script src="app.js" defer></script>
 </head>
@@ -46,8 +46,9 @@
         <div class="shooting-star star2"></div>
         <div class="shooting-star star3"></div>
         <div class="shooting-star star4"></div>
-        
-        <h2 class="lock-title">Hasta que llegue el momento... <i class="fa-solid fa-heart" id="secret-lock-btn" style="cursor: pointer;"></i></h2>
+
+        <h2 class="lock-title">Hasta que llegue el momento... <i class="fa-solid fa-heart" id="secret-lock-btn"
+                style="cursor: pointer;"></i></h2>
         <div class="countdown-massive" id="massive-timer">00d 00h 00m 00s</div>
     </div>
 
@@ -59,6 +60,7 @@
             <li><a href="#historia" onclick="switchTab('historia')">Nuestra Historia</a></li>
             <li><a href="#galeria" onclick="switchTab('galeria')">Galería</a></li>
             <li><button class="nav-btn theme-toggle" id="theme-toggle"><i class="fa-solid fa-moon"></i></button></li>
+            <li><button class="nav-btn" id="audio-toggle-btn" title="Pausar/Reproducir Canción"><i class="fa-solid fa-music"></i> <span id="audio-text-nav">Pausar</span></button></li>
             <li><button class="nav-btn" onclick="openModal()"><i class="fa-solid fa-plus"></i> Nuevo Recuerdo</button>
             </li>
         </ul>
@@ -86,8 +88,6 @@
                                 <source src="nuestra_cancion.mp3.webm" type="audio/webm">
                                 Tu navegador no soporta el audio.
                             </audio>
-                            <button id="audio-btn" class="nav-btn"><i class="fa-solid fa-play"></i> Nuestra
-                                Canción</button>
                         </div>
                     </div>
 
