@@ -769,15 +769,16 @@ function renderData(dataToRender) {
         // Optimizar y transcodificar recursos multimedia de Cloudinary de forma inteligente
         mediaArray = mediaArray.map(item => {
             let optUrl = item.url;
+            let originalUrl = item.url;
             if (optUrl && typeof optUrl === 'string' && optUrl.includes('res.cloudinary.com') && optUrl.includes('/upload/') && !optUrl.includes('q_auto')) {
                 const isVideo = item.type === 'video' || optUrl.match(/\.(mp4|webm|mov|mkv)$/i);
                 if (isVideo) {
-                    optUrl = optUrl.replace('/upload/', '/upload/q_auto,f_mp4,vc_h264/');
+                    optUrl = optUrl.replace('/upload/', '/upload/q_auto,f_mp4,vc_h264,w_700,c_limit/');
                 } else {
-                    optUrl = optUrl.replace('/upload/', '/upload/q_auto,f_auto/');
+                    optUrl = optUrl.replace('/upload/', '/upload/q_auto,f_auto,w_800,c_limit/');
                 }
             }
-            return { ...item, url: optUrl, type: item.type || (optUrl.match(/\.(mp4|webm|mov|mkv)$/i) ? 'video' : 'image') };
+            return { ...item, url: optUrl, originalUrl: originalUrl, type: item.type || (optUrl.match(/\.(mp4|webm|mov|mkv)$/i) ? 'video' : 'image') };
         });
 
         // Render Timeline
@@ -794,18 +795,18 @@ function renderData(dataToRender) {
                 if (mediaArray.length === 1) {
                     const item = mediaArray[0];
                     if (item.type === 'video') {
-                        carouselHTML = `<video src="${item.url}" class="timeline-video" muted playsinline loop preload="none" onclick="window.openLightbox('${item.url}', '${escapedTitle}', 'video')"></video>`;
+                        carouselHTML = `<video src="${item.url}" class="timeline-video" muted playsinline loop preload="none" onclick="window.openLightbox('${item.originalUrl}', '${escapedTitle}', 'video')"></video>`;
                     } else {
-                        carouselHTML = `<img src="${item.url}" alt="" loading="lazy" style="cursor:pointer" onclick="window.openLightbox('${item.url}', '${escapedTitle}')">`;
+                        carouselHTML = `<img src="${item.url}" alt="" loading="lazy" style="cursor:pointer" onclick="window.openLightbox('${item.originalUrl}', '${escapedTitle}')">`;
                     }
                 } else {
                     let itemsHTML = '';
                     let indicatorsHTML = '';
                     mediaArray.forEach((item, idx) => {
                         if (item.type === 'video') {
-                            itemsHTML += `<video src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" muted playsinline loop preload="none" data-type="video" onclick="window.openLightbox('${item.url}', '${escapedTitle}', 'video')"></video>`;
+                            itemsHTML += `<video src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" muted playsinline preload="none" data-type="video" onclick="window.openLightbox('${item.originalUrl}', '${escapedTitle}', 'video')"></video>`;
                         } else {
-                            itemsHTML += `<img src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" loading="lazy" data-type="image" onclick="window.openLightbox('${item.url}', '${escapedTitle}')">`;
+                            itemsHTML += `<img src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" loading="lazy" data-type="image" onclick="window.openLightbox('${item.originalUrl}', '${escapedTitle}')">`;
                         }
                         indicatorsHTML += `<div class="indicator ${idx === 0 ? 'active' : ''}"></div>`;
                     });
@@ -854,18 +855,18 @@ function renderData(dataToRender) {
                 if (mediaArray.length === 1) {
                     const item = mediaArray[0];
                     if (item.type === 'video') {
-                        galHTML = `<video src="${item.url}" class="gallery-video" muted playsinline loop preload="none" onclick="window.openLightbox('${item.url}', '${escapedTitle}', 'video')"></video>`;
+                        galHTML = `<video src="${item.url}" class="gallery-video" muted playsinline loop preload="none" onclick="window.openLightbox('${item.originalUrl}', '${escapedTitle}', 'video')"></video>`;
                     } else {
-                        galHTML = `<img src="${item.url}" alt="" loading="lazy" onclick="window.openLightbox('${item.url}', '${escapedTitle}')">`;
+                        galHTML = `<img src="${item.url}" alt="" loading="lazy" onclick="window.openLightbox('${item.originalUrl}', '${escapedTitle}')">`;
                     }
                 } else {
                     let itemsHTML = '';
                     let indicatorsHTML = '';
                     mediaArray.forEach((item, idx) => {
                         if (item.type === 'video') {
-                            itemsHTML += `<video src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" muted playsinline loop preload="none" data-type="video" onclick="window.openLightbox('${item.url}', '${escapedTitle}', 'video')"></video>`;
+                            itemsHTML += `<video src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" muted playsinline preload="none" data-type="video" onclick="window.openLightbox('${item.originalUrl}', '${escapedTitle}', 'video')"></video>`;
                         } else {
-                            itemsHTML += `<img src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" loading="lazy" data-type="image" onclick="window.openLightbox('${item.url}', '${escapedTitle}')">`;
+                            itemsHTML += `<img src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" loading="lazy" data-type="image" onclick="window.openLightbox('${item.originalUrl}', '${escapedTitle}')">`;
                         }
                         indicatorsHTML += `<div class="indicator ${idx === 0 ? 'active' : ''}"></div>`;
                     });
