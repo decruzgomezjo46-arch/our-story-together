@@ -300,6 +300,8 @@ h1, h2, h3, h4, .nav-brand {
     position: relative;
     background-color: inherit;
     width: 50%;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 400px;
 }
 
 .timeline-item.animate-on-scroll {
@@ -405,6 +407,8 @@ body.dark-mode .timeline-card {
     box-shadow: var(--shadow);
     aspect-ratio: 1;
     cursor: pointer;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 300px;
 }
 
 .gallery-item img {

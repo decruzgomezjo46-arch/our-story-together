@@ -241,6 +241,30 @@ function observeScroll() {
     }, { threshold: 0.1 });
 
     document.querySelectorAll('.animate-on-scroll').forEach(el => observer.observe(el));
+
+    // NUEVO OBSERVER DE RENDIMIENTO PARA VIDEOS (Apaga videos fuera de pantalla)
+    const videoObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            const video = entry.target;
+            if (video.id === 'lightbox-video') return; // Ignorar el video emergente central
+            
+            if (entry.isIntersecting) {
+                // Prender si entra en el marco visible y es candidato activo
+                if (video.paused && (video.classList.contains('timeline-video') || video.classList.contains('gallery-video') || video.classList.contains('active'))) {
+                    video.play().catch(e => console.log('El navegador silenció el video invisible'));
+                }
+            } else {
+                // Destruir carga de CPU cuando el video ya no se vea haciendo scroll
+                if (!video.paused) {
+                    video.pause();
+                }
+            }
+        });
+    }, { threshold: 0.3 }); // Actviar cuando se vea al menos el 30% del recuadro
+
+    document.querySelectorAll('video').forEach(video => {
+        videoObserver.observe(video);
+    });
 }
 
 function setupLightbox() {
@@ -770,7 +794,7 @@ function renderData(dataToRender) {
                 if (mediaArray.length === 1) {
                     const item = mediaArray[0];
                     if (item.type === 'video') {
-                        carouselHTML = `<video src="${item.url}" class="timeline-video" muted autoplay playsinline loop preload="metadata" onclick="window.openLightbox('${item.url}', '${escapedTitle}', 'video')"></video>`;
+                        carouselHTML = `<video src="${item.url}" class="timeline-video" muted playsinline loop preload="none" onclick="window.openLightbox('${item.url}', '${escapedTitle}', 'video')"></video>`;
                     } else {
                         carouselHTML = `<img src="${item.url}" alt="" loading="lazy" style="cursor:pointer" onclick="window.openLightbox('${item.url}', '${escapedTitle}')">`;
                     }
@@ -779,7 +803,7 @@ function renderData(dataToRender) {
                     let indicatorsHTML = '';
                     mediaArray.forEach((item, idx) => {
                         if (item.type === 'video') {
-                            itemsHTML += `<video src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" muted playsinline preload="metadata" data-type="video" onclick="window.openLightbox('${item.url}', '${escapedTitle}', 'video')"></video>`;
+                            itemsHTML += `<video src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" muted playsinline loop preload="none" data-type="video" onclick="window.openLightbox('${item.url}', '${escapedTitle}', 'video')"></video>`;
                         } else {
                             itemsHTML += `<img src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" loading="lazy" data-type="image" onclick="window.openLightbox('${item.url}', '${escapedTitle}')">`;
                         }
@@ -830,7 +854,7 @@ function renderData(dataToRender) {
                 if (mediaArray.length === 1) {
                     const item = mediaArray[0];
                     if (item.type === 'video') {
-                        galHTML = `<video src="${item.url}" class="gallery-video" muted autoplay playsinline loop preload="metadata" onclick="window.openLightbox('${item.url}', '${escapedTitle}', 'video')"></video>`;
+                        galHTML = `<video src="${item.url}" class="gallery-video" muted playsinline loop preload="none" onclick="window.openLightbox('${item.url}', '${escapedTitle}', 'video')"></video>`;
                     } else {
                         galHTML = `<img src="${item.url}" alt="" loading="lazy" onclick="window.openLightbox('${item.url}', '${escapedTitle}')">`;
                     }
@@ -839,7 +863,7 @@ function renderData(dataToRender) {
                     let indicatorsHTML = '';
                     mediaArray.forEach((item, idx) => {
                         if (item.type === 'video') {
-                            itemsHTML += `<video src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" muted playsinline data-type="video" onclick="window.openLightbox('${item.url}', '${escapedTitle}', 'video')"></video>`;
+                            itemsHTML += `<video src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" muted playsinline loop preload="none" data-type="video" onclick="window.openLightbox('${item.url}', '${escapedTitle}', 'video')"></video>`;
                         } else {
                             itemsHTML += `<img src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" loading="lazy" data-type="image" onclick="window.openLightbox('${item.url}', '${escapedTitle}')">`;
                         }
