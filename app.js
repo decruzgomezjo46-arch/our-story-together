@@ -1063,11 +1063,11 @@ function setupBirthdayLock() {
     if (!lockScreen || !massiveTimer) return;
 
     // 🌟 MODO PRUEBA: Cambia a "false" para el día real. Si es "true", el contador dura 30 segundos exactos.
-    const MODO_PRUEBA = true; 
+    const MODO_PRUEBA = false; 
     let testBdayDate = null;
     if (MODO_PRUEBA) {
         testBdayDate = new Date();
-        testBdayDate.setSeconds(testBdayDate.getSeconds() + 15);
+        testBdayDate.setSeconds(testBdayDate.getSeconds() + 30);
     }
 
     // Lógica del "Backdoor" para desarrolladores
