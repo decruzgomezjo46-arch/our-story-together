@@ -231,39 +231,47 @@ function aplicarFiltrosYRenderizar() {
 // ==========================================
 // 🎨 ANIMACIONES Y LIGHTBOX
 // ==========================================
+let globalScrollObserver = null;
+let globalVideoObserver = null;
+
 function observeScroll() {
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                entry.target.classList.add('visible');
-            }
-        });
-    }, { threshold: 0.1 });
-
-    document.querySelectorAll('.animate-on-scroll').forEach(el => observer.observe(el));
-
-    // NUEVO OBSERVER DE RENDIMIENTO PARA VIDEOS (Apaga videos fuera de pantalla)
-    const videoObserver = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            const video = entry.target;
-            if (video.id === 'lightbox-video') return; // Ignorar el video emergente central
-            
-            if (entry.isIntersecting) {
-                // Prender si entra en el marco visible y es candidato activo
-                if (video.paused && (video.classList.contains('timeline-video') || video.classList.contains('gallery-video') || video.classList.contains('active'))) {
-                    video.play().catch(e => console.log('El navegador silenció el video invisible'));
+    if (!globalScrollObserver) {
+        globalScrollObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
                 }
-            } else {
-                // Destruir carga de CPU cuando el video ya no se vea haciendo scroll
-                if (!video.paused) {
-                    video.pause();
-                }
-            }
-        });
-    }, { threshold: 0.3 }); // Actviar cuando se vea al menos el 30% del recuadro
+            });
+        }, { threshold: 0.1 });
+    }
 
+    if (!globalVideoObserver) {
+        globalVideoObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                const video = entry.target;
+                if (video.id === 'lightbox-video') return; 
+                
+                if (entry.isIntersecting) {
+                    if (video.paused && (video.classList.contains('timeline-video') || video.classList.contains('gallery-video') || video.classList.contains('active'))) {
+                        video.play().catch(e => {}); // Silenciado para evitar ruido en consola
+                    }
+                } else {
+                    if (!video.paused) {
+                        video.pause();
+                    }
+                }
+            });
+        }, { threshold: 0.3 });
+    }
+
+    // 1. Matar radares fantasma anteriores
+    globalScrollObserver.disconnect();
+    globalVideoObserver.disconnect();
+
+    // 2. Reconectar a todos los nodos actualizados en el DOM
+    document.querySelectorAll('.animate-on-scroll').forEach(el => globalScrollObserver.observe(el));
     document.querySelectorAll('video').forEach(video => {
-        videoObserver.observe(video);
+        globalVideoObserver.observe(video);
     });
 }
 
@@ -661,37 +669,39 @@ function setupForm() {
                     return;
                 }
 
-                // Proceso de compresión y subida
-                for (const item of currentMediaArray) {
-                    // Si el archivo ya está subido a la nube (es decir, estamos editando un recuerdo), retener los datos originales
+                // Proceso de compresión y subida masiva concurrente
+                saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Procesando archivos...`;
+                
+                const uploadPromises = currentMediaArray.map(async (item) => {
+                    // Si el archivo ya está subido a la nube (es decir, estamos editando un recuerdo), retener los datos
                     if (item.url && !item.file) {
-                        filesToUpload.push({ url: item.url, type: item.type });
-                        continue;
+                        return { url: item.url, type: item.type };
                     }
 
                     let blob = item.file; // Por defecto el original
 
                     if (item.type === 'image') {
-                        saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Optimizando foto...`;
+                        saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Comprimiendo localmente...`;
                         blob = await resizeAndCompressImage(item.file);
                     }
-                    // Para videos, Cloudinary se encarga de la optimización al recibir el original
                     
-                    saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Subiendo a la nube (Cloudinary)...`;
-                    let url;
+                    saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Subiendo a la Nube en Paralelo...`;
                     try {
-                        url = await uploadToCloudinary(blob, item.file.name, item.type);
+                        const url = await uploadToCloudinary(blob, item.file.name, item.type);
+                        if (!url) throw new Error(`Fallo al subir el archivo ${item.file.name}`);
+                        return { url, type: item.type };
                     } catch (uploadErr) {
                         console.error("❌ Error en Cloudinary:", uploadErr);
-                        alert("Error al subir a Cloudinary: " + uploadErr.message);
-                        throw uploadErr;
+                        throw new Error("Error al subir a Cloudinary: " + uploadErr.message);
                     }
-                    
-                    if (url) {
-                        filesToUpload.push({ url, type: item.type });
-                    } else {
-                        throw new Error(`Fallo al subir el archivo ${item.file.name}`);
-                    }
+                });
+
+                try {
+                    const uploadedFiles = await Promise.all(uploadPromises);
+                    filesToUpload.push(...uploadedFiles);
+                } catch(e) {
+                    alert(e.message);
+                    throw e; // Romper el ciclo de guardado para que no guarde a medias
                 }
             }
 
