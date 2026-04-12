@@ -1062,6 +1062,16 @@ function setupBirthdayLock() {
     const secretBtn = document.getElementById("secret-lock-btn");
     if (!lockScreen || !massiveTimer) return;
 
+    // ⚡ GUARDIA TEMPRANA: Si ya es el día 13+ o ya vio la sorpresa hoy → abrir sin flash
+    const now = new Date();
+    const END_CELEBRATION = new Date(2026, 3, 13, 0, 0, 0);
+    const birthdayAlreadySeen = localStorage.getItem('birthdaySeen') === 'true';
+    if (now >= END_CELEBRATION || birthdayAlreadySeen) {
+        lockScreen.style.display = "none";
+        document.body.style.overflow = "auto";
+        return; // Salir completamente, sin timers, sin flash
+    }
+
     // 🌟 MODO PRUEBA: Cambia a "false" para el día real. Si es "true", el contador dura 30 segundos exactos.
     const MODO_PRUEBA = false; 
     let testBdayDate = null;
