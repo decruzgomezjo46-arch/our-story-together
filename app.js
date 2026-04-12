@@ -1149,7 +1149,7 @@ function setupBirthdayLock() {
             const isBirthday = (!MODO_PRUEBA && now.getMonth() === 3 && now.getDate() === 12) || (MODO_PRUEBA && diff <= 0);
 
             // Si es el momento mágico...
-            if (isBirthday) {
+            if (isBirthday || diff <= 0) {
                 const birthdaySeen = localStorage.getItem('birthdaySeen') === 'true';
                 
                 if (!surpriseTriggered && !birthdaySeen) {
@@ -1175,19 +1175,22 @@ function setupBirthdayLock() {
                     if(!devUnlocked) {
                         setTimeout(unlockApp, 10000); // 10s después de felicitar, muestra los recuerdos
                     }
-                } else if (!surpriseTriggered && birthdaySeen) {
+                } else {
+                    // Ya vio la sorpresa o ya es de día: Quitar bloqueo inmediatamente sin fanfarria
                     surpriseTriggered = true;
                     devUnlocked = true;
                     lockScreen.style.display = "none";
                     document.body.style.overflow = "auto";
                     return true;
                 }
+                // Nunca pintar el contador con valores negativos - salir siempre
+                return;
             } else {
+                // Pre-cumpleaños: pintar el contador positivo normalmente
                 const d = Math.floor(diff / (1000 * 60 * 60 * 24));
                 const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
                 const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
                 const s = Math.floor((diff % (1000 * 60)) / 1000);
-
                 massiveTimer.innerText = `${d.toString().padStart(2, '0')}d ${h.toString().padStart(2, '0')}h ${m.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`;
             }
         } catch (e) {
