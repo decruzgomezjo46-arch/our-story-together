@@ -1150,8 +1150,12 @@ function setupBirthdayLock() {
 
             // Si es el momento mágico...
             if (isBirthday) {
-                if (!surpriseTriggered) {
+                const birthdaySeen = localStorage.getItem('birthdaySeen') === 'true';
+                
+                if (!surpriseTriggered && !birthdaySeen) {
                     surpriseTriggered = true;
+                    localStorage.setItem('birthdaySeen', 'true');
+                    
                     massiveTimer.innerHTML = "¡Feliz Cumpleaños mi amor! 🎉<br><span style='font-size: 0.6em; color: white;'>Ve afuera de tu casa... 💐</span>";
                     massiveTimer.style.fontSize = window.innerWidth < 768 ? "1.8rem" : "3.5rem";
                     massiveTimer.style.color = "var(--accent-color)";
@@ -1169,11 +1173,16 @@ function setupBirthdayLock() {
                     burstHearts();
 
                     if(!devUnlocked) {
-                        // Esperar 12 segundos para que lea la instrucción y disfrute la música antes de desvanecerse
-                        setTimeout(unlockApp, 12000); 
-                        devUnlocked = true;
+                        setTimeout(unlockApp, 10000); // 10s después de felicitar, muestra los recuerdos
                     }
+                } else if (!surpriseTriggered && birthdaySeen) {
+                    surpriseTriggered = true;
+                    devUnlocked = true;
+                    lockScreen.style.display = "none";
+                    document.body.style.overflow = "auto";
+                    return true;
                 }
+            } else {
                 return;
             }
 
