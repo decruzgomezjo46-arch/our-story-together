@@ -1062,16 +1062,6 @@ function setupBirthdayLock() {
     const secretBtn = document.getElementById("secret-lock-btn");
     if (!lockScreen || !massiveTimer) return;
 
-    // ⚡ GUARDIA TEMPRANA: Si ya es el día 13+ o ya vio la sorpresa hoy → abrir sin flash
-    const now = new Date();
-    const END_CELEBRATION = new Date(2026, 3, 13, 0, 0, 0);
-    const birthdayAlreadySeen = localStorage.getItem('birthdaySeen') === 'true';
-    if (now >= END_CELEBRATION || birthdayAlreadySeen) {
-        lockScreen.style.display = "none";
-        document.body.style.overflow = "auto";
-        return; // Salir completamente, sin timers, sin flash
-    }
-
     // 🌟 MODO PRUEBA: Cambia a "false" para el día real. Si es "true", el contador dura 30 segundos exactos.
     const MODO_PRUEBA = false; 
     let testBdayDate = null;
@@ -1159,50 +1149,53 @@ function setupBirthdayLock() {
             const isBirthday = (!MODO_PRUEBA && now.getMonth() === 3 && now.getDate() === 12) || (MODO_PRUEBA && diff <= 0);
 
             // Si es el momento mágico...
-            if (isBirthday || diff <= 0) {
-                const birthdaySeen = localStorage.getItem('birthdaySeen') === 'true';
-                
-                if (!surpriseTriggered && !birthdaySeen) {
+            if (isBirthday) {
+                if (!surpriseTriggered) {
                     surpriseTriggered = true;
-                    localStorage.setItem('birthdaySeen', 'true');
-                    
-                    massiveTimer.innerHTML = "¡Feliz Cumpleaños mi amor! 🎉<br><span style='font-size: 0.6em; color: white;'>Ve afuera de tu casa... 💐</span>";
-                    massiveTimer.style.fontSize = window.innerWidth < 768 ? "1.8rem" : "3.5rem";
-                    massiveTimer.style.color = "var(--accent-color)";
-                    
-                    // Activar música romántica y explosión de corazones 🎉
-                    const audio = document.getElementById("bg-audio");
-                    if (audio) {
-                        // Forzar el loop absoluto de la pista en caso de que el celular se apague/hiberne
-                        audio.addEventListener('ended', function() {
-                            this.currentTime = 0;
-                            this.play().catch(e => console.log('Loop interrumpido', e));
-                        });
-                        audio.play().catch(e => console.log("El navegador bloqueó el autoplay del audio."));
-                    }
-                    burstHearts();
 
-                    if(!devUnlocked) {
-                        setTimeout(unlockApp, 10000); // 10s después de felicitar, muestra los recuerdos
+                    // Detectar si es la apertura inicial de media noche vs. una apertura durante el día
+                    const isFirstMidnightMoment = !MODO_PRUEBA && now.getHours() === 0 && now.getMinutes() < 10;
+                    
+                    if (isFirstMidnightMoment || MODO_PRUEBA) {
+                        // --- MODO MEDIA NOCHE: Celebración completa con instrucciones ---
+                        massiveTimer.innerHTML = "¡Feliz Cumpleaños mi amor! 🎉<br><span style='font-size: 0.6em; color: white;'>Ve afuera de tu casa... 💐</span>";
+                        massiveTimer.style.fontSize = window.innerWidth < 768 ? "1.8rem" : "3.5rem";
+                        massiveTimer.style.color = "var(--accent-color)";
+
+                        // Activar música romántica y explosión de corazones 🎉
+                        const audio = document.getElementById("bg-audio");
+                        if (audio) {
+                            audio.addEventListener('ended', function() {
+                                this.currentTime = 0;
+                                this.play().catch(e => console.log('Loop interrumpido', e));
+                            });
+                            audio.play().catch(e => console.log("El navegador bloqueó el autoplay del audio."));
+                        }
+                        burstHearts();
+
+                        if (!devUnlocked) {
+                            setTimeout(unlockApp, 12000);
+                            devUnlocked = true;
+                        }
+                    } else {
+                        // --- MODO DIA DEL CUMPLEÑOS: Saludo suave y libre acceso inmediato ---
+                        massiveTimer.innerHTML = "🎂 ¡Feliz Cumpleaños, mi amor! 💗";
+                        massiveTimer.style.fontSize = window.innerWidth < 768 ? "1.8rem" : "2.5rem";
+                        massiveTimer.style.color = "var(--accent-color)";
+                        devUnlocked = true;
+                        // Liberar rápido después de 2 segundos de saludo
+                        setTimeout(unlockApp, 2000);
                     }
-                } else {
-                    // Ya vio la sorpresa o ya es de día: Quitar bloqueo inmediatamente sin fanfarria
-                    surpriseTriggered = true;
-                    devUnlocked = true;
-                    lockScreen.style.display = "none";
-                    document.body.style.overflow = "auto";
-                    return true;
                 }
-                // Nunca pintar el contador con valores negativos - salir siempre
                 return;
-            } else {
-                // Pre-cumpleaños: pintar el contador positivo normalmente
-                const d = Math.floor(diff / (1000 * 60 * 60 * 24));
-                const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-                const s = Math.floor((diff % (1000 * 60)) / 1000);
-                massiveTimer.innerText = `${d.toString().padStart(2, '0')}d ${h.toString().padStart(2, '0')}h ${m.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`;
             }
+
+            const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const s = Math.floor((diff % (1000 * 60)) / 1000);
+
+            massiveTimer.innerText = `${d.toString().padStart(2, '0')}d ${h.toString().padStart(2, '0')}h ${m.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`;
         } catch (e) {
             console.error("Error silencioso en update:", e);
         }
