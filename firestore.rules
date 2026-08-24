@@ -1,0 +1,53 @@
+rules_version = '2';
+
+// ============================================
+// REGLAS DE FIRESTORE - our-story-together
+// Proyecto: amorapp-68726
+// Consola: https://console.firebase.google.com
+// (Firestore Database > Reglas > pegar > Publicar)
+// ============================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ==========================================
+    // OPCIÓN A - MODO ACTUAL (público)
+    // Igual a como funciona hoy. La app sigue
+    // funcionando sin login para ustedes dos.
+    // ⚠️ Cualquiera con la URL puede escribir.
+    // ==========================================
+    match /recuerdos/{doc} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /recuerdos_dev/{doc} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Sueños (lista de metas juntos) ✨
+    match /suenos/{doc} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /suenos_dev/{doc} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // ==========================================
+    // OPCIÓN B - MODO PROTEGIDO (recomendado)
+    // Requiere activar Firebase Authentication:
+    //   1. Consola > Authentication > Comenzar
+    //   2. Proveedor: Correo/contraseña > habilitar
+    //   3. Usuarios > Agregar usuario (ustedes dos)
+    //   4. Comenta la Opción A y descomenta esto:
+    //
+    // match /{document=**} {
+    //   allow read, write: if request.auth != null;
+    // }
+    // ==========================================
+  }
+}

@@ -1,4 +1,4 @@
-// app.js
+﻿// app.js
 
 // ==========================================
 // 🔴 CONFIGURACIÓN DE FIREBASE (Base de Datos)
@@ -29,12 +29,74 @@ try {
 const CLOUDINARY_CLOUD_NAME = "dwdxuhcmz";
 const CLOUDINARY_UPLOAD_PRESET = "recuerdos_preset";
 
+// ==========================================
+// 🧪 SEPARACIÓN DE DATOS: LOCAL vs PRODUCCIÓN
+// ==========================================
+// Si abres la app desde localhost o file://, se usa la colección "recuerdos_dev"
+// para que tus pruebas NUNCA toquen los recuerdos reales de producción.
+const isLocalEnv = ['localhost', '127.0.0.1', ''].includes(location.hostname) || location.protocol === 'file:';
+// 👀 Truco: abrir en local con "?prod=1" en la URL muestra los datos REALES
+// en modo SOLO LECTURA. Sin ese parámetro, local siempre usa pruebas (recuerdos_dev).
+const previewRealData = new URLSearchParams(location.search).has('prod');
+const COLLECTION_NAME = (isLocalEnv && !previewRealData) ? 'recuerdos_dev' : 'recuerdos';
+const READ_ONLY_PREVIEW = isLocalEnv && previewRealData;
+// Colección de sueños: sigue la misma separación local/producción que los recuerdos
+const DREAMS_COLLECTION = COLLECTION_NAME === 'recuerdos' ? 'suenos' : 'suenos_dev';
+
+// ==========================================
+// 🔐 CONTRASEÑA (SHA-256, no texto plano)
+// ==========================================
+// Hash SHA-256 de la contraseña. Para cambiarla, genera el nuevo hash:
+// PowerShell: $b=[Text.Encoding]::UTF8.GetBytes("NUEVAPASS"); ($([Security.Cryptography.SHA256]::Create()).ComputeHash($b)|%{$_.ToString('x2')}) -join ''
+const PASSWORD_SHA256 = "4b70b7ab0264593fb1db7854c29555bb908ea4fcc3d2c231f78f8c610e2a9cd2";
+
+async function sha256Hex(text) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function checkPassword(input) {
+    if (input === null || input === undefined) return false;
+    try {
+        return (await sha256Hex(input)) === PASSWORD_SHA256;
+    } catch (e) {
+        console.error("crypto.subtle no disponible. Usa localhost o https.", e);
+        alert("Error de seguridad del navegador. Sirve la app desde un servidor local (Live Server) en lugar de abrir el archivo directo.");
+        return false;
+    }
+}
+
+// ==========================================
+// 🛡️ HELPERS ANTI-XSS
+// ==========================================
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// Para valores dentro de onclick="...'${...}'..." (HTML attr + string JS)
+function escapeAttr(value) {
+    return escapeHtml(
+        String(value ?? '')
+            .replace(/\\/g, '\\\\')
+            .replace(/\r?\n/g, ' ')
+    );
+}
+
 // Variables Globales
 let recuerdos = [];
 let editandoId = null;
 let currentMediaArray = []; // Arreglo para múltiples fotos y videos {file, type, preview}
 let currentFilterYear = 'Todos';
 let currentSearchTerm = '';
+
+// Estado de Sueños ✨
+let suenos = [];
+let editandoSuenoId = null;
 
 // ==========================================
 // 🕒 CONTADOR DE TIEMPO Y AUDIO
@@ -146,14 +208,20 @@ document.addEventListener('DOMContentLoaded', () => {
     createFloatingHearts();
     setupSmartNavbar();
     setupBirthdayLock();
+    setupDreams();
 
     // Cargar datos
     if (isFirebaseConfigured) {
         // Escucha en tiempo real de Firebase
-        db.collection('recuerdos').onSnapshot((snapshot) => {
+        db.collection(COLLECTION_NAME).onSnapshot((snapshot) => {
             recuerdos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             aplicarFiltrosYRenderizar();
         });
+        if (READ_ONLY_PREVIEW) {
+            window.showToast('👀 Vista previa de datos REALES (solo lectura)');
+        } else if (isLocalEnv) {
+            console.log('🧪 Modo LOCAL: usando colección de prueba "' + COLLECTION_NAME + '". Tus datos reales están a salvo.');
+        }
     } else {
         // Carga local
         recuerdos = JSON.parse(localStorage.getItem('amorRecuerdos')) || [];
@@ -562,9 +630,10 @@ function resetPhotoInput() {
     document.getElementById('dragDropArea').style.display = 'block';
 }
 
-window.editarRecuerdo = function (id) {
-    const pass = prompt("Por seguridad, introduce la contraseña para editar (Por defecto es: amor123):");
-    if (pass !== "Nuestroamorperdura") {
+window.editarRecuerdo = async function (id) {
+    if (READ_ONLY_PREVIEW) { alert('👀 Modo vista previa (?prod=1): la edición está bloqueada para proteger los datos reales.'); return; }
+    const pass = prompt("Por seguridad, introduce la contraseña para editar:");
+    if (!(await checkPassword(pass))) {
         if (pass !== null) alert("Contraseña incorrecta.");
         return;
     }
@@ -604,15 +673,16 @@ window.editarRecuerdo = function (id) {
 }
 
 window.eliminarRecuerdo = async function (id) {
+    if (READ_ONLY_PREVIEW) { alert('👀 Modo vista previa (?prod=1): el borrado está bloqueado para proteger los datos reales.'); return; }
     const pass = prompt("Por seguridad, introduce la contraseña para eliminar.");
-    if (pass !== "Nuestroamorperdura") {
+    if (!(await checkPassword(pass))) {
         if (pass !== null) alert("Contraseña incorrecta.");
         return;
     }
 
     if (confirm("¿Estás seguro de que deseas eliminar este recuerdo para siempre?")) {
         if (isFirebaseConfigured) {
-            await db.collection("recuerdos").doc(id).delete();
+            await db.collection(COLLECTION_NAME).doc(id).delete();
         } else {
             recuerdos = recuerdos.filter(r => r.id !== id);
             localStorage.setItem('amorRecuerdos', JSON.stringify(recuerdos));
@@ -628,6 +698,8 @@ window.closeModal = function () {
 window.onclick = function (event) {
     const modal = document.getElementById('uploadModal');
     if (event.target == modal) window.closeModal();
+    const dreamModal = document.getElementById('dreamModal');
+    if (event.target == dreamModal) window.closeDreamModal();
 }
 
 window.toggleFormFields = function () {
@@ -663,12 +735,16 @@ function setupForm() {
     const form = document.getElementById('uploadForm');
     form.addEventListener('submit', async function (e) {
         e.preventDefault();
+        if (READ_ONLY_PREVIEW) {
+            alert('👀 Modo vista previa (?prod=1): guardar está bloqueado para proteger los datos reales.');
+            return;
+        }
         const saveBtn = form.querySelector('.btn-submit');
         saveBtn.disabled = true;
         saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
 
         try {
-            const tipo = document.getElementById('titulo').value ? document.getElementById('tipoRecuerdo').value : 'historia';
+            const tipo = document.getElementById('tipoRecuerdo').value;
             const filesToUpload = [];
 
             if (tipo === 'ambos' || tipo === 'foto' || tipo === 'video') {
@@ -727,9 +803,9 @@ function setupForm() {
 
             if (isFirebaseConfigured) {
                 if (editandoId) {
-                    await db.collection("recuerdos").doc(editandoId).update(data);
+                    await db.collection(COLLECTION_NAME).doc(editandoId).update(data);
                 } else {
-                    await db.collection("recuerdos").add(data);
+                    await db.collection(COLLECTION_NAME).add(data);
                 }
             } else {
                 if (editandoId) {
@@ -805,33 +881,35 @@ function renderData(dataToRender) {
         if (recuerdo.tipo === 'ambos' || recuerdo.tipo === 'historia' || recuerdo.tipo === 'video') {
             const dateObj = new Date(recuerdo.fecha + 'T00:00:00');
             const fechaFormateada = dateObj.toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
+            const titleHtml = escapeHtml(recuerdo.titulo);
+            const safeId = escapeAttr(recuerdo.id);
 
             const div = document.createElement('div');
             div.className = `timeline-item animate-on-scroll ${isLeft ? 'left' : 'right'}`;
 
             let carouselHTML = '';
             if (mediaArray.length > 0) {
-                const escapedTitle = recuerdo.titulo.replace(/'/g, "\\'");
+                const titleJs = escapeAttr(recuerdo.titulo);
                 if (mediaArray.length === 1) {
                     const item = mediaArray[0];
                     if (item.type === 'video') {
-                        carouselHTML = `<video src="${item.url}" class="timeline-video" muted playsinline loop preload="none" onclick="window.openLightbox('${item.originalUrl}', '${escapedTitle}', 'video')"></video>`;
+                        carouselHTML = `<video src="${escapeHtml(item.url)}" class="timeline-video" muted playsinline loop preload="none" onclick="window.openLightbox('${escapeAttr(item.originalUrl)}', '${titleJs}', 'video')"></video>`;
                     } else {
-                        carouselHTML = `<img src="${item.url}" alt="" loading="lazy" style="cursor:pointer" onclick="window.openLightbox('${item.originalUrl}', '${escapedTitle}')">`;
+                        carouselHTML = `<img src="${escapeHtml(item.url)}" alt="" loading="lazy" style="cursor:pointer" onclick="window.openLightbox('${escapeAttr(item.originalUrl)}', '${titleJs}')">`;
                     }
                 } else {
                     let itemsHTML = '';
                     let indicatorsHTML = '';
                     mediaArray.forEach((item, idx) => {
                         if (item.type === 'video') {
-                            itemsHTML += `<video src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" muted playsinline preload="none" data-type="video" onclick="window.openLightbox('${item.originalUrl}', '${escapedTitle}', 'video')"></video>`;
+                            itemsHTML += `<video src="${escapeHtml(item.url)}" class="carousel-img ${idx === 0 ? 'active' : ''}" muted playsinline preload="none" data-type="video" onclick="window.openLightbox('${escapeAttr(item.originalUrl)}', '${titleJs}', 'video')"></video>`;
                         } else {
-                            itemsHTML += `<img src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" loading="lazy" data-type="image" onclick="window.openLightbox('${item.originalUrl}', '${escapedTitle}')">`;
+                            itemsHTML += `<img src="${escapeHtml(item.url)}" class="carousel-img ${idx === 0 ? 'active' : ''}" loading="lazy" data-type="image" onclick="window.openLightbox('${escapeAttr(item.originalUrl)}', '${titleJs}')">`;
                         }
                         indicatorsHTML += `<div class="indicator ${idx === 0 ? 'active' : ''}"></div>`;
                     });
                     carouselHTML = `
-                    <div class="carousel-container" id="carousel-${recuerdo.id}" style="min-height: 250px; border-radius: 8px; margin-top:15px; cursor:pointer;" data-smart-carousel="true">
+                    <div class="carousel-container" id="carousel-${safeId}" style="min-height: 250px; border-radius: 8px; margin-top:15px; cursor:pointer;" data-smart-carousel="true">
                         ${itemsHTML}
                         <div class="carousel-indicators">${indicatorsHTML}</div>
                     </div>`;
@@ -840,18 +918,19 @@ function renderData(dataToRender) {
 
             div.innerHTML = `
                 <div class="timeline-card">
+                    ${READ_ONLY_PREVIEW ? '' : `
                     <div class="card-actions">
-                        <button class="action-btn" onclick="window.editarRecuerdo('${recuerdo.id}')" title="Editar"><i class="fa-solid fa-pen"></i></button>
-                        <button class="action-btn delete" onclick="window.eliminarRecuerdo('${recuerdo.id}')" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
-                    </div>
+                        <button class="action-btn" onclick="window.editarRecuerdo('${safeId}')" title="Editar"><i class="fa-solid fa-pen"></i></button>
+                        <button class="action-btn delete" onclick="window.eliminarRecuerdo('${safeId}')" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+                    </div>`}
                     <span class="timeline-date">${fechaFormateada}</span>
-                    <h3 class="timeline-title">${recuerdo.titulo}</h3>
+                    <h3 class="timeline-title">${titleHtml}</h3>
                     ${recuerdo.descripcion ? `
                     <div class="expandable-text"
                          onmouseenter="this.classList.add('expanded')"
                          onmouseleave="if(!this.classList.contains('pinned')) this.classList.remove('expanded')"
                          onclick="this.classList.toggle('pinned'); this.classList.toggle('expanded', this.classList.contains('pinned') || false)">
-                        <p class="timeline-content text-collapsed">${recuerdo.descripcion}</p>
+                        <p class="timeline-content text-collapsed">${escapeHtml(recuerdo.descripcion)}</p>
                         <span class="read-more-btn"><i class="fa-solid fa-chevron-down"></i><span class="btn-label"></span></span>
                     </div>` : ''}
                     ${carouselHTML}
@@ -867,7 +946,9 @@ function renderData(dataToRender) {
                 const dateObj = new Date(recuerdo.fecha + 'T00:00:00');
                 const fechaFormateada = dateObj.toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
                 const anio = recuerdo.fecha.substring(0, 4);
-                const escapedTitle = recuerdo.titulo.replace(/'/g, "\\'");
+                const titleHtml = escapeHtml(recuerdo.titulo);
+                const titleJs = escapeAttr(recuerdo.titulo);
+                const safeId = escapeAttr(recuerdo.id);
                 const div = document.createElement('div');
                 div.className = 'gallery-item';
 
@@ -875,23 +956,23 @@ function renderData(dataToRender) {
                 if (mediaArray.length === 1) {
                     const item = mediaArray[0];
                     if (item.type === 'video') {
-                        galHTML = `<video src="${item.url}" class="gallery-video" muted playsinline loop preload="none" onclick="window.openLightbox('${item.originalUrl}', '${escapedTitle}', 'video')"></video>`;
+                        galHTML = `<video src="${escapeHtml(item.url)}" class="gallery-video" muted playsinline loop preload="none" onclick="window.openLightbox('${escapeAttr(item.originalUrl)}', '${titleJs}', 'video')"></video>`;
                     } else {
-                        galHTML = `<img src="${item.url}" alt="" loading="lazy" onclick="window.openLightbox('${item.originalUrl}', '${escapedTitle}')">`;
+                        galHTML = `<img src="${escapeHtml(item.url)}" alt="" loading="lazy" onclick="window.openLightbox('${escapeAttr(item.originalUrl)}', '${titleJs}')">`;
                     }
                 } else {
                     let itemsHTML = '';
                     let indicatorsHTML = '';
                     mediaArray.forEach((item, idx) => {
                         if (item.type === 'video') {
-                            itemsHTML += `<video src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" muted playsinline preload="none" data-type="video" onclick="window.openLightbox('${item.originalUrl}', '${escapedTitle}', 'video')"></video>`;
+                            itemsHTML += `<video src="${escapeHtml(item.url)}" class="carousel-img ${idx === 0 ? 'active' : ''}" muted playsinline preload="none" data-type="video" onclick="window.openLightbox('${escapeAttr(item.originalUrl)}', '${titleJs}', 'video')"></video>`;
                         } else {
-                            itemsHTML += `<img src="${item.url}" class="carousel-img ${idx === 0 ? 'active' : ''}" loading="lazy" data-type="image" onclick="window.openLightbox('${item.originalUrl}', '${escapedTitle}')">`;
+                            itemsHTML += `<img src="${escapeHtml(item.url)}" class="carousel-img ${idx === 0 ? 'active' : ''}" loading="lazy" data-type="image" onclick="window.openLightbox('${escapeAttr(item.originalUrl)}', '${titleJs}')">`;
                         }
                         indicatorsHTML += `<div class="indicator ${idx === 0 ? 'active' : ''}"></div>`;
                     });
                     galHTML = `
-                    <div class="carousel-container" id="gal-carousel-${recuerdo.id}" data-smart-carousel="true">
+                    <div class="carousel-container" id="gal-carousel-${safeId}" data-smart-carousel="true">
                         ${itemsHTML}
                         <div class="carousel-indicators">${indicatorsHTML}</div>
                     </div>`;
@@ -900,13 +981,14 @@ function renderData(dataToRender) {
                 div.innerHTML = `
                     ${galHTML}
                     <div class="gallery-caption">
-                        <h4>${recuerdo.titulo}</h4>
-                        <p>${anio}</p>
+                        <h4>${titleHtml}</h4>
+                        <p>${escapeHtml(anio)}</p>
                         <p class="gallery-date">${fechaFormateada}</p>
+                        ${READ_ONLY_PREVIEW ? '' : `
                         <div class="gallery-actions">
-                            <button class="action-btn" onclick="window.editarRecuerdo('${recuerdo.id}')"><i class="fa-solid fa-pen"></i></button>
-                            <button class="action-btn delete" onclick="window.eliminarRecuerdo('${recuerdo.id}')"><i class="fa-solid fa-trash"></i></button>
-                        </div>
+                            <button class="action-btn" onclick="window.editarRecuerdo('${safeId}')"><i class="fa-solid fa-pen"></i></button>
+                            <button class="action-btn delete" onclick="window.eliminarRecuerdo('${safeId}')"><i class="fa-solid fa-trash"></i></button>
+                        </div>`}
                     </div>
                 `;
                 gallery.appendChild(div);
@@ -1054,6 +1136,201 @@ window.showToast = function (message) {
 }
 
 // ==========================================
+// ✨ NUESTROS SUEÑOS
+// ==========================================
+function formatearFechaCorta(iso) {
+    try {
+        return new Date(iso + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+    } catch (e) {
+        return iso || '';
+    }
+}
+
+function setupDreams() {
+    if (!isFirebaseConfigured) return;
+
+    // Sincronización en tiempo real
+    db.collection(DREAMS_COLLECTION).onSnapshot((snapshot) => {
+        suenos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        renderDreams();
+    });
+    if (isLocalEnv && !READ_ONLY_PREVIEW) {
+        console.log('🧪 Sueños locales usando colección "' + DREAMS_COLLECTION + '".');
+    }
+
+    // Formulario
+    const form = document.getElementById('dreamForm');
+    form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        if (READ_ONLY_PREVIEW) {
+            alert('👀 Modo vista previa (?prod=1): guardar está bloqueado para proteger los datos reales.');
+            return;
+        }
+
+        const titulo = document.getElementById('sueno-titulo').value.trim();
+        const descripcion = document.getElementById('sueno-descripcion').value.trim();
+        if (!titulo) return;
+
+        try {
+            if (editandoSuenoId) {
+                // Solo actualizar texto: conservar estado cumplido intacto
+                await db.collection(DREAMS_COLLECTION).doc(editandoSuenoId).update({ titulo, descripcion });
+                window.showToast('Sueño actualizado ✨');
+            } else {
+                await db.collection(DREAMS_COLLECTION).add({
+                    titulo,
+                    descripcion,
+                    cumplido: false,
+                    fechaCumplido: null
+                });
+                window.showToast('Nuevo sueño agregado ✨');
+            }
+            window.closeDreamModal();
+        } catch (err) {
+            alert('Error al guardar el sueño: ' + err.message);
+        }
+    });
+}
+
+function renderDreams() {
+    const container = document.getElementById('dreams-container');
+    const emptyEl = document.getElementById('empty-dreams');
+    if (!container) return;
+    container.innerHTML = '';
+
+    // Barra de progreso compartida
+    const total = suenos.length;
+    const cumplidos = suenos.filter(s => s.cumplido).length;
+    const label = document.getElementById('dreams-progress-label');
+    const fill = document.getElementById('dreams-progress-fill');
+    if (label) label.innerHTML = `<i class="fa-solid fa-star"></i> Cumplimos ${cumplidos} de ${total} sueños`;
+    if (fill) fill.style.width = total ? Math.round((cumplidos / total) * 100) + '%' : '0%';
+
+    if (total === 0) {
+        emptyEl.style.display = 'block';
+        return;
+    }
+    emptyEl.style.display = 'none';
+
+    // Pendientes primero para mantenerlos visibles y motivadores
+    const sorted = [...suenos].sort((a, b) => (a.cumplido === b.cumplido) ? 0 : (a.cumplido ? 1 : -1));
+
+    sorted.forEach(s => {
+        const safeId = escapeAttr(s.id);
+        const div = document.createElement('div');
+        div.className = 'dream-card' + (s.cumplido ? ' fulfilled' : '');
+
+        const checkIcon = s.cumplido ? '<i class="fa-solid fa-check"></i>' : '<i class="fa-regular fa-heart"></i>';
+        const checkTitle = s.cumplido ? 'Marcar como pendiente' : '¡Lo logramos! Marcar como cumplido';
+        const badge = s.cumplido
+            ? `<span class="dream-badge done"><i class="fa-solid fa-check"></i> Hecho realidad${s.fechaCumplido ? ' · ' + escapeHtml(formatearFechaCorta(s.fechaCumplido)) : ''}</span>`
+            : `<span class="dream-badge pending"><i class="fa-regular fa-clock"></i> Por cumplir</span>`;
+
+        div.innerHTML = `
+            ${READ_ONLY_PREVIEW ? '' : `
+            <div class="card-actions">
+                <button class="action-btn" onclick="window.editarSueno('${safeId}')" title="Editar"><i class="fa-solid fa-pen"></i></button>
+                <button class="action-btn delete" onclick="window.eliminarSueno('${safeId}')" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+            </div>`}
+            <button type="button" class="dream-check ${s.cumplido ? 'on' : ''}" onclick="window.toggleSueno('${safeId}')" title="${checkTitle}">
+                ${checkIcon}
+            </button>
+            <h3 class="dream-title">${escapeHtml(s.titulo)}</h3>
+            ${s.descripcion ? `<p class="dream-desc">${escapeHtml(s.descripcion)}</p>` : ''}
+            ${badge}
+        `;
+        container.appendChild(div);
+    });
+}
+
+window.openDreamModal = function () {
+    if (READ_ONLY_PREVIEW) { alert('👀 Modo vista previa (?prod=1): agregar sueños está bloqueado.'); return; }
+    editandoSuenoId = null;
+    document.getElementById('dreamModal').style.display = 'block';
+    document.getElementById('dreamForm').reset();
+}
+
+window.closeDreamModal = function () {
+    document.getElementById('dreamModal').style.display = 'none';
+}
+
+window.editarSueno = async function (id) {
+    if (READ_ONLY_PREVIEW) { alert('👀 Modo vista previa (?prod=1): la edición está bloqueada.'); return; }
+    const pass = prompt("Contraseña para editar este sueño:");
+    if (!(await checkPassword(pass))) {
+        if (pass !== null) alert("Contraseña incorrecta.");
+        return;
+    }
+
+    const sueno = suenos.find(x => x.id === id);
+    if (!sueno) return;
+
+    editandoSuenoId = id;
+    document.getElementById('sueno-titulo').value = sueno.titulo || '';
+    document.getElementById('sueno-descripcion').value = sueno.descripcion || '';
+    document.getElementById('dreamModal').style.display = 'block';
+}
+
+window.eliminarSueno = async function (id) {
+    if (READ_ONLY_PREVIEW) { alert('👀 Modo vista previa (?prod=1): el borrado está bloqueado.'); return; }
+    const pass = prompt("Contraseña para eliminar este sueño:");
+    if (!(await checkPassword(pass))) {
+        if (pass !== null) alert("Contraseña incorrecta.");
+        return;
+    }
+
+    if (confirm("¿Eliminar este sueño para siempre?")) {
+        try {
+            await db.collection(DREAMS_COLLECTION).doc(id).delete();
+            window.showToast("Sueño eliminado");
+        } catch (err) {
+            alert('Error al eliminar: ' + err.message);
+        }
+    }
+}
+
+window.toggleSueno = async function (id) {
+    if (READ_ONLY_PREVIEW) { alert('👀 Modo vista previa (?prod=1): cambios bloqueados.'); return; }
+    const sueno = suenos.find(s => s.id === id);
+    if (!sueno) return;
+
+    const nuevoEstado = !sueno.cumplido;
+    try {
+        await db.collection(DREAMS_COLLECTION).doc(id).update({
+            cumplido: nuevoEstado,
+            fechaCumplido: nuevoEstado ? new Date().toISOString().substring(0, 10) : null
+        });
+        if (nuevoEstado) {
+            celebrate();
+            window.showToast('¡Un sueño más hecho realidad! 💖');
+        }
+    } catch (err) {
+        alert('Error al actualizar: ' + err.message);
+    }
+}
+
+// Lluvia global de corazones/estrellas (para celebrar logros)
+function celebrate(count = 45) {
+    const container = document.createElement('div');
+    container.className = 'celebration-overlay';
+    document.body.appendChild(container);
+
+    const emojis = ['💗', '✨', '💖', '⭐', '🐢'];
+    for (let i = 0; i < count; i++) {
+        const p = document.createElement('span');
+        p.className = 'party-heart';
+        p.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+        p.style.left = Math.random() * 100 + '%';
+        p.style.fontSize = (Math.random() * 1.6 + 1) + 'rem';
+        p.style.animationDuration = (Math.random() * 2 + 2.5) + 's';
+        p.style.animationDelay = (Math.random() * 0.8) + 's';
+        container.appendChild(p);
+    }
+
+    setTimeout(() => container.remove(), 6000);
+}
+
+// ==========================================
 // 🔒 PANTALLA DE BLOQUEO Y CUMPLEAÑOS
 // ==========================================
 function setupBirthdayLock() {
@@ -1075,12 +1352,12 @@ function setupBirthdayLock() {
     let devUnlocked = sessionStorage.getItem('devUnlocked') === 'true';
 
     if (secretBtn) {
-        secretBtn.addEventListener('click', () => {
+        secretBtn.addEventListener('click', async () => {
             devClicks++;
             if (devClicks >= 3) {
                 devClicks = 0; // Reiniciar contador
                 const pw = prompt("Modo Desarrollador. Ingresa la contraseña de pase:");
-                if (pw === "Nuestroamorperdura") {
+                if (await checkPassword(pw)) {
                     sessionStorage.setItem('devUnlocked', 'true');
                     devUnlocked = true;
                     unlockApp();
@@ -1165,11 +1442,23 @@ function setupBirthdayLock() {
                         // Activar música romántica y explosión de corazones 🎉
                         const audio = document.getElementById("bg-audio");
                         if (audio) {
-                            audio.addEventListener('ended', function() {
+                            audio.addEventListener('ended', function () {
                                 this.currentTime = 0;
                                 this.play().catch(e => console.log('Loop interrumpido', e));
                             });
-                            audio.play().catch(e => console.log("El navegador bloqueó el autoplay del audio."));
+                            audio.play().catch(() => {
+                                // El navegador bloqueó el autoplay: mostrar botón de respaldo
+                                console.log("El navegador bloqueó el autoplay del audio. Mostrando botón manual.");
+                                if (!document.getElementById('manual-music-btn')) {
+                                    const playBtn = document.createElement('button');
+                                    playBtn.id = 'manual-music-btn';
+                                    playBtn.className = 'btn-primary';
+                                    playBtn.style.marginTop = '20px';
+                                    playBtn.innerHTML = '<i class="fa-solid fa-music"></i> Toca para escuchar nuestra canción';
+                                    playBtn.onclick = () => audio.play().catch(() => {});
+                                    lockScreen.appendChild(playBtn);
+                                }
+                            });
                         }
                         burstHearts();
 

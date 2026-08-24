@@ -58,6 +58,7 @@
         <ul class="nav-links">
             <li><a href="#inicio" class="active" onclick="switchTab('inicio')">Inicio</a></li>
             <li><a href="#historia" onclick="switchTab('historia')">Nuestra Historia</a></li>
+            <li><a href="#suenos" onclick="switchTab('suenos')">Sueños ✨</a></li>
             <li><a href="#galeria" onclick="switchTab('galeria')">Galería</a></li>
             <li><button class="nav-btn theme-toggle" id="theme-toggle"><i class="fa-solid fa-moon"></i></button></li>
             <li><button class="nav-btn" id="audio-toggle-btn" title="Pausar/Reproducir Canción"><i class="fa-solid fa-music"></i> <span id="audio-text-nav">Pausar</span></button></li>
@@ -117,6 +118,38 @@
                         <p>Aún no hay recuerdos añadidos. ¡Sube su primer recuerdo!</p>
                         <button class="btn-primary mt-4" onclick="openModal()">Añadir Historia</button>
                     </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Suenos Tab -->
+        <section id="tab-suenos" class="tab-pane">
+            <div class="section-container">
+                <h2 class="section-title">Nuestros Sueños</h2>
+
+                <!-- Progreso compartido -->
+                <div class="dreams-progress-card">
+                    <div class="dreams-progress-text" id="dreams-progress-label">
+                        <i class="fa-solid fa-star"></i> Cumplimos 0 de 0 sueños
+                    </div>
+                    <div class="dreams-progress-bar">
+                        <div class="dreams-progress-fill" id="dreams-progress-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <div class="center-btn">
+                    <button class="btn-primary mt-4" onclick="openDreamModal()"><i class="fa-solid fa-plus"></i>
+                        Nuevo Sueño</button>
+                </div>
+
+                <div class="dreams-grid" id="dreams-container">
+                    <!-- Los sueños se inyectarán aquí por JavaScript -->
+                </div>
+
+                <div class="timeline-empty-state" id="empty-dreams">
+                    <i class="fa-solid fa-cloud-moon"></i>
+                    <p>Aún no han escrito sus sueños. ¡Soñar juntos es el primer paso!</p>
+                    <button class="btn-primary mt-4" onclick="openDreamModal()">Agregar Sueño</button>
                 </div>
             </div>
         </section>
@@ -181,6 +214,26 @@
                 </div>
 
                 <button type="submit" class="btn-submit">Guardar para siempre <i class="fa-solid fa-heart"></i></button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal para Sueños -->
+    <div id="dreamModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeDreamModal()">&times;</span>
+            <h3 class="modal-title">Un Nuevo Sueño Juntos</h3>
+            <form id="dreamForm">
+                <div class="form-group">
+                    <label for="sueno-titulo">¿Qué quieren lograr juntos?</label>
+                    <input type="text" id="sueno-titulo" placeholder="Ej: Viajar a la playa que siempre soñamos" required>
+                </div>
+                <div class="form-group">
+                    <label for="sueno-descripcion">Detalles del sueño (opcional)</label>
+                    <textarea id="sueno-descripcion" rows="3"
+                        placeholder="Describe cómo se ve ese sueño hecho realidad..."></textarea>
+                </div>
+                <button type="submit" class="btn-submit">Guardar sueño <i class="fa-solid fa-star"></i></button>
             </form>
         </div>
     </div>
