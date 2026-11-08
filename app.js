@@ -67,6 +67,36 @@ async function checkPassword(input) {
 }
 
 // ==========================================
+// 🔐 PANTALLA DE ACCESO INICIAL (FECHA: 03/11/26)
+// ==========================================
+// Se guardan hashes SHA-256 de la fecha normalizada (solo dígitos), con y sin
+// ceros a la izquierda y con año de 2 o 4 cifras. Así funcionan tanto "03/11/26"
+// como "3/11/26" o "03-11-2026", sin guardar la contraseña en texto plano.
+const ACCESS_PASSWORD_SHA256 = [
+    "4116cd1e4f6671e0e2ccd5f76bb0c93cc586c71b0137b02aba30978c0e77d9ec", // 031126
+    "f128b92e59604af6a665b9e18cf102dd66c237294cc3c057fabe3c897bf57ea6", // 31126
+    "53130b2c399cb37d8c17291f2a08c7940ecad7d1dbf942c87d1c1a4ce75f720c", // 03112026
+    "2d24dfc45f9a9991392cb46e3ba36d4622c9ada40cfa7699ca0d9a229b7f4b86"  // 3112026
+];
+const ACCESS_SESSION_KEY = 'historiaAcceso';
+
+function normalizeAccessPassword(input) {
+    return String(input ?? '').replace(/\D/g, '');
+}
+
+async function checkAccessPassword(input) {
+    const digits = normalizeAccessPassword(input);
+    if (!digits) return false;
+    try {
+        const hash = await sha256Hex(digits);
+        return ACCESS_PASSWORD_SHA256.includes(hash);
+    } catch (e) {
+        console.error("crypto.subtle no disponible. Usa localhost o https.", e);
+        return false;
+    }
+}
+
+// ==========================================
 // 🛡️ HELPERS ANTI-XSS
 // ==========================================
 function escapeHtml(value) {
@@ -207,6 +237,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupLightbox();
     createFloatingHearts();
     setupSmartNavbar();
+    setupAccessLock();
     setupBirthdayLock();
     setupDreams();
 
@@ -1328,6 +1359,84 @@ function celebrate(count = 45) {
     }
 
     setTimeout(() => container.remove(), 6000);
+}
+
+// ==========================================
+// 🔐 PANTALLA DE ACCESO INICIAL
+// ==========================================
+function setupAccessLock() {
+    const overlay = document.getElementById('access-lock');
+    const form = document.getElementById('access-lock-form');
+    const input = document.getElementById('access-lock-input');
+    const errorEl = document.getElementById('access-lock-error');
+    const card = overlay ? overlay.querySelector('.access-lock-card') : null;
+    if (!overlay || !form || !input) return;
+
+    // Si ya se abrió en esta pestaña, no volver a pedir la contraseña.
+    let granted = false;
+    try { granted = sessionStorage.getItem(ACCESS_SESSION_KEY) === 'abierto'; } catch (e) { }
+    if (granted) {
+        document.documentElement.classList.add('access-granted');
+        overlay.remove();
+        return;
+    }
+
+    // Enfocar el campo sin provocar saltos de scroll en móvil.
+    setTimeout(() => {
+        try { input.focus({ preventScroll: true }); } catch (e) { input.focus(); }
+    }, 350);
+
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const value = input.value;
+
+        if (!normalizeAccessPassword(value)) {
+            if (errorEl) errorEl.textContent = 'Escribe la fecha para continuar.';
+            input.focus();
+            return;
+        }
+
+        // crypto.subtle solo existe en contextos seguros (https o localhost).
+        if (!window.crypto || !window.crypto.subtle) {
+            if (errorEl) errorEl.textContent = 'Abre la página desde https o localhost para poder validar la fecha.';
+            return;
+        }
+
+        const ok = await checkAccessPassword(value);
+        if (!ok) {
+            if (errorEl) errorEl.textContent = 'Esa no es la fecha. Inténtalo de nuevo.';
+            input.value = '';
+            input.focus();
+            if (card) {
+                card.classList.remove('shake');
+                void card.offsetWidth; // Reinicia la animación
+                card.classList.add('shake');
+            }
+            return;
+        }
+
+        if (errorEl) errorEl.textContent = '';
+        try { sessionStorage.setItem(ACCESS_SESSION_KEY, 'abierto'); } catch (e) { }
+
+        // Desvanecer y retirar la pantalla de acceso.
+        overlay.classList.add('access-lock-opening');
+        setTimeout(() => {
+            overlay.remove();
+            document.documentElement.classList.add('access-granted');
+        }, 600);
+    });
+
+    // Si el navegador restaura la página desde caché, respetar el acceso ya concedido.
+    window.addEventListener('pageshow', (event) => {
+        if (!event.persisted) return;
+        let stillGranted = false;
+        try { stillGranted = sessionStorage.getItem(ACCESS_SESSION_KEY) === 'abierto'; } catch (e) { }
+        if (stillGranted) {
+            document.documentElement.classList.add('access-granted');
+            const currentOverlay = document.getElementById('access-lock');
+            if (currentOverlay) currentOverlay.remove();
+        }
+    });
 }
 
 // ==========================================

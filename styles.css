@@ -1056,6 +1056,153 @@ video.carousel-img {
 }
 
 /* ==========================================
+   🔐 PANTALLA DE ACCESO (CONTRASEÑA)
+   ========================================== */
+#access-lock {
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 24px;
+    overflow: hidden;
+    color: #fff;
+    background: radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%);
+    font-family: var(--font-heading);
+    transition: opacity 0.55s ease, transform 0.55s ease;
+}
+
+/* Si ya se abrió en esta pestaña, no se muestra ni un parpadeo */
+html.access-granted #access-lock {
+    display: none !important;
+}
+
+/* Mientras está bloqueada, no se puede hacer scroll por detrás */
+html:not(.access-granted) {
+    overflow: hidden !important;
+}
+
+#access-lock.access-lock-opening {
+    opacity: 0;
+    transform: scale(1.04);
+    pointer-events: none;
+}
+
+.access-lock-card {
+    position: relative;
+    z-index: 10;
+    width: 100%;
+    max-width: 420px;
+    padding: 48px 34px 40px;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(212, 175, 55, 0.35);
+    border-radius: 20px;
+    box-shadow: 0 0 60px rgba(212, 175, 55, 0.12), inset 0 0 40px rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    animation: accessCardIn 1.2s cubic-bezier(0.22, 0.9, 0.3, 1) both;
+}
+
+@keyframes accessCardIn {
+    from { opacity: 0; transform: translateY(18px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.access-lock-icon {
+    font-size: 2.2rem;
+    color: var(--accent-color);
+    margin-bottom: 18px;
+    text-shadow: 0 0 22px rgba(212, 175, 55, 0.7);
+    animation: lockPulse 3.6s ease-in-out infinite;
+}
+
+@keyframes lockPulse {
+    0%, 100% { transform: scale(1); opacity: 0.85; }
+    50% { transform: scale(1.08); opacity: 1; }
+}
+
+.access-lock-card .lock-title {
+    font-size: 2.1rem;
+    margin-bottom: 0.75rem;
+}
+
+.access-lock-subtitle {
+    font-family: var(--font-body);
+    font-weight: 300;
+    font-size: 0.95rem;
+    line-height: 1.7;
+    color: rgba(255, 255, 255, 0.75);
+    margin-bottom: 28px;
+}
+
+#access-lock-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+#access-lock-input {
+    width: 100%;
+    padding: 14px 18px;
+    text-align: center;
+    letter-spacing: 0.28em;
+    font-family: var(--font-body);
+    font-size: 1.1rem;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 12px;
+    outline: none;
+    transition: var(--transition);
+}
+
+#access-lock-input::placeholder {
+    letter-spacing: 0.1em;
+    color: rgba(255, 255, 255, 0.35);
+}
+
+#access-lock-input:focus {
+    border-color: var(--accent-color);
+    background: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.18);
+}
+
+#access-lock-form .btn-primary {
+    width: 100%;
+    padding: 14px 28px;
+}
+
+#access-lock-error {
+    min-height: 1.4em;
+    margin-top: 16px;
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    color: #ff9aa6;
+}
+
+.access-lock-card.shake {
+    animation: lockShake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes lockShake {
+    10%, 90% { transform: translateX(-2px); }
+    20%, 80% { transform: translateX(4px); }
+    30%, 50%, 70% { transform: translateX(-7px); }
+    40%, 60% { transform: translateX(7px); }
+}
+
+@media (max-width: 480px) {
+    .access-lock-card {
+        padding: 38px 22px 32px;
+    }
+    .access-lock-card .lock-title {
+        font-size: 1.7rem;
+    }
+}
+
+/* ==========================================
    🔒 PANTALLA DE BLOQUEO (CUMPLEAÑOS)
    ========================================== */
 #lock-screen {

@@ -20,6 +20,20 @@
         sessionStorage.removeItem('coiReloaded');
     </script>
 
+    <script>
+        // 🔐 Si la puerta ya se abrió en esta pestaña, ocultar la pantalla de acceso
+        // antes de que se pinte la página (evita cualquier parpadeo al recargar).
+        (function () {
+            try {
+                if (sessionStorage.getItem('historiaAcceso') === 'abierto') {
+                    document.documentElement.classList.add('access-granted');
+                }
+            } catch (e) {
+                /* Si el navegador bloquea sessionStorage, se pedirá la contraseña. */
+            }
+        })();
+    </script>
+
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -40,6 +54,39 @@
 </head>
 
 <body>
+    <!-- 🔐 Pantalla de acceso: protege este recuerdo sin borrar nada -->
+    <div id="access-lock" role="dialog" aria-modal="true" aria-labelledby="access-lock-title">
+        <div class="shooting-star star1"></div>
+        <div class="shooting-star star2"></div>
+        <div class="shooting-star star3"></div>
+        <div class="shooting-star star4"></div>
+
+        <div class="access-lock-card">
+            <div class="access-lock-icon"><i class="fa-solid fa-lock"></i></div>
+            <h1 class="lock-title" id="access-lock-title">Nuestra Historia</h1>
+            <p class="access-lock-subtitle">
+                Este lugar guarda un recuerdo muy nuestro.<br>
+                Escribe la fecha para volver a entrar.
+            </p>
+
+            <form id="access-lock-form" autocomplete="off">
+                <input
+                    type="password"
+                    id="access-lock-input"
+                    inputmode="numeric"
+                    placeholder="dd/mm/aa"
+                    aria-label="Fecha de acceso"
+                    aria-describedby="access-lock-error"
+                    autocomplete="current-password">
+                <button type="submit" class="btn-primary">
+                    <i class="fa-solid fa-heart"></i> Entrar
+                </button>
+            </form>
+
+            <p id="access-lock-error" role="alert" aria-live="polite"></p>
+        </div>
+    </div>
+
     <!-- Pantalla de Bloqueo a Pantalla Completa (Cumpleaños) -->
     <div id="lock-screen" style="display: none;">
         <div class="shooting-star star1"></div>
