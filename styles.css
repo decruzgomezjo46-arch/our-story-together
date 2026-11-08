@@ -215,6 +215,17 @@ h1, h2, h3, h4, .nav-brand {
     letter-spacing: 1px;
 }
 
+.hero-dates {
+    font-family: var(--font-body);
+    font-size: 0.8rem;
+    font-weight: 400;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.8);
+    margin-top: -1.5rem;
+    margin-bottom: 2rem;
+}
+
 .hero-extras {
     display: flex;
     flex-wrap: wrap;
@@ -1053,6 +1064,11 @@ video.carousel-img {
 /* Modal multimedia icon overlay */
 .mini-preview .mini-video-icon {
     font-size: 1rem;
+}
+
+/* Pestañas deshabilitadas (Sueños): se conservan, pero no se muestran */
+.nav-item-disabled {
+    display: none !important;
 }
 
 /* ==========================================

@@ -132,19 +132,23 @@ let editandoSuenoId = null;
 // 🕒 CONTADOR DE TIEMPO Y AUDIO
 // ==========================================
 const START_DATE = new Date("2024-10-02T00:00:00");
+// 🕊️ El contador se detiene aquí: 3 de noviembre de 2026, el día en que terminamos.
+const END_DATE = new Date("2026-11-03T00:00:00");
 
 function updateCounter() {
+    // Si la página se abre antes de esa fecha, cuenta hasta ella; después queda congelado.
     const now = new Date();
+    const frozenNow = now < END_DATE ? now : END_DATE;
 
-    let years = now.getFullYear() - START_DATE.getFullYear();
-    let months = now.getMonth() - START_DATE.getMonth();
-    let days = now.getDate() - START_DATE.getDate();
+    let years = frozenNow.getFullYear() - START_DATE.getFullYear();
+    let months = frozenNow.getMonth() - START_DATE.getMonth();
+    let days = frozenNow.getDate() - START_DATE.getDate();
 
     // Ajustar si aún no hemos llegado al día en este mes
     if (days < 0) {
         months--;
         // Obtener la cantidad de días del mes anterior
-        const prevMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+        const prevMonth = new Date(frozenNow.getFullYear(), frozenNow.getMonth(), 0);
         days += prevMonth.getDate();
     }
 
@@ -160,7 +164,7 @@ function updateCounter() {
     text += `${days} día${days !== 1 ? 's' : ''}`;
 
     const counterEl = document.getElementById('time-together');
-    if (counterEl) counterEl.innerText = `Llevamos ${text} juntos`;
+    if (counterEl) counterEl.innerText = `Estuvimos juntos: ${text}`;
 }
 
 function setupAudio() {
@@ -227,8 +231,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Configurar nuevas funciones
-    updateCounter();
-    setInterval(updateCounter, 1000 * 60 * 60); // Actualizar cada hora
+    updateCounter(); // 🕊️ Contador congelado en el 03/11/2026
     setupAudio();
     setupDarkMode();
     setupDragAndDrop();
@@ -270,6 +273,9 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 window.switchTab = function (tabId) {
+    // 🔒 Pestañas deshabilitadas: se conservan en el código, pero no son accesibles.
+    if (tabId === 'suenos') return;
+
     document.querySelectorAll('.tab-pane').forEach(tab => tab.classList.remove('active'));
     document.querySelectorAll('.nav-links a').forEach(link => link.classList.remove('active'));
     document.getElementById(`tab-${tabId}`).classList.add('active');
@@ -494,7 +500,7 @@ function setupDragAndDrop() {
         // Restaurar botón de envío
         if(saveBtn) {
             saveBtn.disabled = false;
-            saveBtn.innerHTML = 'Guardar para siempre <i class="fa-solid fa-heart"></i>';
+            saveBtn.innerHTML = 'Guardar este recuerdo <i class="fa-solid fa-heart"></i>';
         }
 
         // Si no se pudo cargar nada, volver a mostrar el área de drop
@@ -649,7 +655,7 @@ window.openModal = function () {
     document.getElementById('uploadForm').reset();
     resetPhotoInput();
     editandoId = null;
-    document.querySelector('.modal-title').innerText = 'Guardar un Nuevo Recuerdo';
+    document.querySelector('.modal-title').innerText = 'Guardar un Recuerdo';
     window.toggleFormFields();
 }
 
@@ -782,7 +788,7 @@ function setupForm() {
                 if (currentMediaArray.length === 0) {
                     alert('Por favor agrega al menos un archivo multimedia.');
                     saveBtn.disabled = false;
-                    saveBtn.innerHTML = 'Guardar para siempre <i class="fa-solid fa-heart"></i>';
+                    saveBtn.innerHTML = 'Guardar este recuerdo <i class="fa-solid fa-heart"></i>';
                     return;
                 }
 
@@ -860,7 +866,7 @@ function setupForm() {
             alert('Error al guardar: ' + error.message);
         } finally {
             saveBtn.disabled = false;
-            saveBtn.innerHTML = 'Guardar para siempre <i class="fa-solid fa-heart"></i>';
+            saveBtn.innerHTML = 'Guardar este recuerdo <i class="fa-solid fa-heart"></i>';
         }
     });
 }
@@ -1234,7 +1240,7 @@ function renderDreams() {
     const cumplidos = suenos.filter(s => s.cumplido).length;
     const label = document.getElementById('dreams-progress-label');
     const fill = document.getElementById('dreams-progress-fill');
-    if (label) label.innerHTML = `<i class="fa-solid fa-star"></i> Cumplimos ${cumplidos} de ${total} sueños`;
+    if (label) label.innerHTML = `<i class="fa-solid fa-star"></i> Cumplieron ${cumplidos} de ${total} sueños`;
     if (fill) fill.style.width = total ? Math.round((cumplidos / total) * 100) + '%' : '0%';
 
     if (total === 0) {

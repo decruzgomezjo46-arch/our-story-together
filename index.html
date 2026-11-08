@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nuestra Historia del Amor</title>
+    <title>Nuestro Recuerdo · La Historia de un Amor que Fue</title>
 
     <script>
         // 🧹 Limpieza de Service Workers antiguos para corregir videos en negro en F5
@@ -63,10 +63,10 @@
 
         <div class="access-lock-card">
             <div class="access-lock-icon"><i class="fa-solid fa-lock"></i></div>
-            <h1 class="lock-title" id="access-lock-title">Nuestra Historia</h1>
+            <h1 class="lock-title" id="access-lock-title">Nuestro Recuerdo</h1>
             <p class="access-lock-subtitle">
-                Este lugar guarda un recuerdo muy nuestro.<br>
-                Escribe la fecha para volver a entrar.
+                El amor se quedó corto, pero los recuerdos quedaron grabados.<br>
+                Escribe la fecha en que terminamos para volver a entrar.
             </p>
 
             <form id="access-lock-form" autocomplete="off">
@@ -101,12 +101,13 @@
 
     <!-- Navbar -->
     <nav class="navbar">
-        <div class="nav-brand">Amor Eterno</div>
+        <div class="nav-brand">Nuestro Recuerdo</div>
         <ul class="nav-links">
-            <li><a href="#inicio" class="active" onclick="switchTab('inicio')">Inicio</a></li>
+            <li><a href="#inicio" class="active" onclick="switchTab('inicio')">Portada</a></li>
             <li><a href="#historia" onclick="switchTab('historia')">Nuestra Historia</a></li>
-            <li><a href="#suenos" onclick="switchTab('suenos')">Sueños ✨</a></li>
-            <li><a href="#galeria" onclick="switchTab('galeria')">Galería</a></li>
+            <!-- Pestaña de Sueños deshabilitada: se conserva en el código y en la base de datos -->
+            <li class="nav-item-disabled" hidden aria-hidden="true"><span>Sueños ✨</span></li>
+            <li><a href="#galeria" onclick="switchTab('galeria')">Momentos</a></li>
             <li><button class="nav-btn theme-toggle" id="theme-toggle"><i class="fa-solid fa-moon"></i></button></li>
             <li><button class="nav-btn" id="audio-toggle-btn" title="Pausar/Reproducir Canción"><i class="fa-solid fa-music"></i> <span id="audio-text-nav">Pausar</span></button></li>
             <li><button class="nav-btn" onclick="openModal()"><i class="fa-solid fa-plus"></i> Nuevo Recuerdo</button>
@@ -121,13 +122,14 @@
             <header class="hero">
                 <div class="hero-overlay"></div>
                 <div class="hero-content fade-in-up">
-                    <h1 class="hero-title">Nuestra Historia de Amor</h1>
-                    <p class="hero-subtitle">Un viaje de momentos inolvidables</p>
+                    <h1 class="hero-title">La Historia de un Amor que Fue</h1>
+                    <p class="hero-subtitle">Un viaje de momentos que quedaron grabados</p>
+                    <p class="hero-dates">02 de octubre de 2024 — 03 de noviembre de 2026</p>
 
                     <div class="hero-extras">
-                        <!-- Contador de Tiempo -->
+                        <!-- Contador de Tiempo (congelado en la fecha en que terminamos) -->
                         <div class="love-counter" id="love-counter">
-                            <i class="fa-solid fa-clock"></i> <span id="time-together">Llevamos 0 días juntos</span>
+                            <i class="fa-solid fa-clock"></i> <span id="time-together">Estuvimos juntos: 2 años, 1 mes y 1 día</span>
                         </div>
 
                         <!-- Reproductor MP3 Simple -->
@@ -139,8 +141,7 @@
                         </div>
                     </div>
 
-                    <button class="btn-primary mt-4" id="btn-start" onclick="switchTab('historia')">Empezar el
-                        Viaje</button>
+                    <button class="btn-primary mt-4" id="btn-start" onclick="switchTab('historia')">Recordar Nuestra Historia</button>
                 </div>
             </header>
         </section>
@@ -152,7 +153,7 @@
 
                 <!-- Filtros y Búsqueda -->
                 <div class="controls-container">
-                    <input type="text" id="searchInput" placeholder="Buscar en nuestra historia..." class="search-bar">
+                    <input type="text" id="searchInput" placeholder="Buscar en nuestros recuerdos..." class="search-bar">
                     <div class="year-filters" id="yearFilters">
                         <!-- Los botones de años se insertarán por JS -->
                     </div>
@@ -162,7 +163,7 @@
                     <!-- Las historias se inyectarán aquí por JavaScript -->
                     <div class="timeline-empty-state" id="empty-timeline">
                         <i class="fa-solid fa-heart-crack"></i>
-                        <p>Aún no hay recuerdos añadidos. ¡Sube su primer recuerdo!</p>
+                        <p>Aún no hay recuerdos guardados. Aquí quedarán los momentos que vivieron.</p>
                         <button class="btn-primary mt-4" onclick="openModal()">Añadir Historia</button>
                     </div>
                 </div>
@@ -177,7 +178,7 @@
                 <!-- Progreso compartido -->
                 <div class="dreams-progress-card">
                     <div class="dreams-progress-text" id="dreams-progress-label">
-                        <i class="fa-solid fa-star"></i> Cumplimos 0 de 0 sueños
+                        <i class="fa-solid fa-star"></i> Cumplieron 0 de 0 sueños
                     </div>
                     <div class="dreams-progress-bar">
                         <div class="dreams-progress-fill" id="dreams-progress-fill" style="width: 0%"></div>
@@ -195,7 +196,7 @@
 
                 <div class="timeline-empty-state" id="empty-dreams">
                     <i class="fa-solid fa-cloud-moon"></i>
-                    <p>Aún no han escrito sus sueños. ¡Soñar juntos es el primer paso!</p>
+                    <p>Aún no quedaron sueños guardados. Soñar juntos fue el primer paso.</p>
                     <button class="btn-primary mt-4" onclick="openDreamModal()">Agregar Sueño</button>
                 </div>
             </div>
@@ -204,7 +205,7 @@
         <!-- Galeria Tab -->
         <section id="tab-galeria" class="tab-pane">
             <div class="section-container">
-                <h2 class="section-title">Nuestros Momentos</h2>
+                <h2 class="section-title">Momentos que Quedaron</h2>
                 <div class="gallery-grid" id="gallery-container">
                     <!-- Las fotos se inyectarán aquí -->
                 </div>
@@ -216,14 +217,14 @@
     <div id="uploadModal" class="modal">
         <div class="modal-content">
             <span class="close-btn" onclick="closeModal()">&times;</span>
-            <h3 class="modal-title">Guardar un Nuevo Recuerdo</h3>
+            <h3 class="modal-title">Guardar un Recuerdo</h3>
             <form id="uploadForm">
                 <div class="form-group">
                     <label for="tipoRecuerdo">¿Qué deseas agregar?</label>
                     <select id="tipoRecuerdo" onchange="toggleFormFields()">
                         <option value="ambos">Historia con Multimedia</option>
                         <option value="historia">Solo Historia (Texto)</option>
-                        <option value="foto">Solo Foto (Galería)</option>
+                        <option value="foto">Solo Foto (Momentos)</option>
                         <option value="video">Solo Video</option>
                     </select>
                 </div>
@@ -239,9 +240,9 @@
                 </div>
 
                 <div class="form-group" id="group-descripcion">
-                    <label for="descripcion">Cuenten la historia...</label>
+                    <label for="descripcion">Cuéntanos lo que vivieron...</label>
                     <textarea id="descripcion" rows="4"
-                        placeholder="Escribe aquí los detalles de este momento especial..." required></textarea>
+                        placeholder="Escribe aquí los detalles de ese momento especial..." required></textarea>
                 </div>
 
                 <div class="form-group" id="group-foto">
@@ -260,7 +261,7 @@
                     </div>
                 </div>
 
-                <button type="submit" class="btn-submit">Guardar para siempre <i class="fa-solid fa-heart"></i></button>
+                <button type="submit" class="btn-submit">Guardar este recuerdo <i class="fa-solid fa-heart"></i></button>
             </form>
         </div>
     </div>
