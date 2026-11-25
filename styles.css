@@ -1056,6 +1056,370 @@ video.carousel-img {
 }
 
 /* ==========================================
+   ⬇️ DESCARGAR RECUERDOS
+   ========================================== */
+.download-modal-content {
+    max-width: 760px;
+}
+
+.download-password-row {
+    margin-bottom: 18px;
+}
+
+.download-password-row label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.download-password-row input {
+    width: 100%;
+    padding: 12px 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-family: var(--font-body);
+    font-size: 1rem;
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    transition: var(--transition);
+}
+
+.download-password-row input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(114, 47, 55, 0.12);
+}
+
+.download-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid rgba(114, 47, 55, 0.15);
+    padding-bottom: 10px;
+}
+
+.download-tab {
+    flex: 1;
+    padding: 10px 12px;
+    border: 1px solid rgba(114, 47, 55, 0.2);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-muted);
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.download-tab:hover {
+    background: rgba(114, 47, 55, 0.08);
+}
+
+.download-tab.active {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: #fff;
+}
+
+.download-quick-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.download-quick-actions button,
+.download-range button {
+    padding: 7px 12px;
+    border: 1px solid rgba(114, 47, 55, 0.25);
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.5);
+    color: var(--primary-dark);
+    font-family: var(--font-body);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.download-quick-actions button:hover,
+.download-range button:hover {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: #fff;
+}
+
+.download-range {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.download-range input {
+    flex: 1 1 130px;
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-family: var(--font-body);
+    background: var(--bg-color);
+    color: var(--text-main);
+}
+
+.download-inline-option,
+.download-options label,
+.download-format label {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 0.9rem;
+    color: var(--text-main);
+    cursor: pointer;
+}
+
+.download-inline-option {
+    margin-bottom: 12px;
+}
+
+.download-date-list {
+    max-height: 330px;
+    overflow-y: auto;
+    padding: 8px;
+    border: 1px solid rgba(114, 47, 55, 0.15);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.45);
+}
+
+.download-month-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 8px 6px;
+    font-weight: 700;
+    color: var(--primary-dark);
+    text-transform: capitalize;
+    position: sticky;
+    top: -8px;
+    background: var(--bg-color);
+    z-index: 1;
+}
+
+.download-month-header input {
+    accent-color: var(--primary-color);
+}
+
+.download-day-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    border-radius: 8px;
+    font-size: 0.88rem;
+}
+
+.download-day-row:hover {
+    background: rgba(114, 47, 55, 0.06);
+}
+
+.download-day-row input {
+    accent-color: var(--primary-color);
+}
+
+.download-day-date {
+    font-weight: 600;
+    color: var(--text-main);
+    min-width: 105px;
+}
+
+.download-day-meta {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+.download-media-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-bottom: 12px;
+    font-size: 0.9rem;
+}
+
+.download-media-filters label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+
+.download-media-filters input {
+    accent-color: var(--primary-color);
+}
+
+.download-media-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+    gap: 10px;
+    max-height: 350px;
+    overflow-y: auto;
+    padding: 4px;
+}
+
+.download-media-card {
+    position: relative;
+    border: 1px solid rgba(114, 47, 55, 0.15);
+    border-radius: 10px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.55);
+}
+
+.download-media-card img,
+.download-media-video {
+    width: 100%;
+    height: 88px;
+    object-fit: cover;
+    display: block;
+}
+
+.download-media-video {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #4A1C24, #722F37);
+    color: #fff;
+    font-size: 1.7rem;
+}
+
+.download-media-card label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 7px;
+    font-size: 0.72rem;
+    color: var(--text-main);
+    cursor: pointer;
+}
+
+.download-media-card input {
+    accent-color: var(--primary-color);
+}
+
+.download-media-caption {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.download-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 16px 0;
+    padding: 12px 14px;
+    border: 1px solid rgba(114, 47, 55, 0.15);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.45);
+}
+
+.download-format {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 12px;
+    font-size: 0.95rem;
+    color: var(--text-main);
+}
+
+.download-summary {
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: rgba(114, 47, 55, 0.07);
+    color: var(--text-main);
+    font-size: 0.88rem;
+    line-height: 1.5;
+}
+
+.download-error {
+    min-height: 1.2em;
+    margin: 8px 0;
+    color: #c0392b;
+    font-size: 0.85rem;
+}
+
+.download-start-btn {
+    width: 100%;
+    margin-top: 6px;
+}
+
+.download-progress-title {
+    text-align: center;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--primary-dark);
+    margin-bottom: 16px;
+}
+
+.download-progress-bar {
+    height: 14px;
+    border-radius: 20px;
+    background: rgba(114, 47, 55, 0.12);
+    overflow: hidden;
+}
+
+.download-progress-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 20px;
+    background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
+    transition: width 0.2s ease;
+}
+
+.download-progress-detail {
+    margin: 12px 0 0;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+#downloadCancelBtn {
+    width: 100%;
+    margin-top: 18px;
+}
+
+body.dark-mode .download-date-list,
+body.dark-mode .download-media-card,
+body.dark-mode .download-options,
+body.dark-mode .download-quick-actions button,
+body.dark-mode .download-range button {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.14);
+}
+
+body.dark-mode .download-month-header {
+    background: var(--bg-color);
+}
+
+@media (max-width: 600px) {
+    .download-modal-content {
+        padding: 28px 18px;
+    }
+    .download-tabs {
+        flex-direction: column;
+    }
+    .download-day-date {
+        min-width: 88px;
+    }
+    .download-media-grid {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    }
+}
+
+/* ==========================================
    🔒 PANTALLA DE BLOQUEO (CUMPLEAÑOS)
    ========================================== */
 #lock-screen {

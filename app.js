@@ -209,6 +209,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupSmartNavbar();
     setupBirthdayLock();
     setupDreams();
+    setupDownload();
 
     // Cargar datos
     if (isFirebaseConfigured) {
@@ -1535,5 +1536,1207 @@ function setupSmartNavbar() {
         }
         lastScrollY = window.scrollY;
     }, { passive: true });
+}
+
+// ==========================================
+// ⬇️ DESCARGAR RECUERDOS (solo lectura)
+// ==========================================
+const DOWNLOAD_PASSWORD_SHA256 = "dafe526a46530caedcc3e730e811f67a6eec2a898baa122e75b77740de1b72cc";
+const DOWNLOAD_SONG_FILE = 'nuestra_cancion.mp3.webm';
+const ZIP_WARN_BYTES = 300 * 1024 * 1024;
+const ZIP_HARD_LIMIT_BYTES = 800 * 1024 * 1024;
+const DOWNLOAD_MONTHS_ES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const DOWNLOAD_MONTHS_SHORT_ES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+const downloadState = {
+    tab: 'fecha',
+    mediaFilter: 'all',
+    selectedDates: new Set(),
+    selectedMedia: new Set(),
+    groups: [],
+    mediaIndex: [],
+    running: false,
+    cancelled: false,
+    abortController: null
+};
+
+function downloadPad(number) {
+    return String(number).padStart(2, '0');
+}
+
+function downloadDelay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function downloadToIsoDate(date) {
+    if (!(date instanceof Date) || isNaN(date.getTime())) return 'sin-fecha';
+    return `${date.getFullYear()}-${downloadPad(date.getMonth() + 1)}-${downloadPad(date.getDate())}`;
+}
+
+function normalizeDownloadDate(value) {
+    if (!value) return 'sin-fecha';
+    if (typeof value === 'string') {
+        const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (match) return `${match[1]}-${match[2]}-${match[3]}`;
+        const parsed = new Date(value);
+        return isNaN(parsed.getTime()) ? 'sin-fecha' : downloadToIsoDate(parsed);
+    }
+    if (typeof value.toDate === 'function') {
+        return downloadToIsoDate(value.toDate());
+    }
+    if (typeof value.seconds === 'number') {
+        return downloadToIsoDate(new Date(value.seconds * 1000));
+    }
+    return 'sin-fecha';
+}
+
+function formatDownloadDay(dateKey) {
+    if (dateKey === 'sin-fecha') return 'Sin fecha';
+    const parts = String(dateKey).split('-');
+    const year = Number(parts[0]);
+    const month = Number(parts[1]);
+    const day = Number(parts[2]);
+    if (!year || !month || !day) return dateKey;
+    return `${day} ${DOWNLOAD_MONTHS_SHORT_ES[month - 1] || ''} ${year}`.trim();
+}
+
+function formatDownloadMonth(monthKey) {
+    if (monthKey === 'sin-fecha') return 'Sin fecha';
+    const parts = String(monthKey).split('-');
+    const year = Number(parts[0]);
+    const month = Number(parts[1]);
+    if (!year || !month) return monthKey;
+    const label = `${DOWNLOAD_MONTHS_ES[month - 1] || ''} ${year}`.trim();
+    return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function downloadCount(number, singular, plural) {
+    return `${number} ${number === 1 ? singular : plural}`;
+}
+
+function buildDownloadData() {
+    const groupsByMonth = new Map();
+    const mediaIndex = [];
+
+    recuerdos.forEach((recuerdo, memoryIndex) => {
+        const date = normalizeDownloadDate(recuerdo.fecha);
+        const monthKey = date === 'sin-fecha' ? 'sin-fecha' : date.slice(0, 7);
+        const memoryKey = recuerdo.id || `${date}|${recuerdo.titulo || 'recuerdo'}|${memoryIndex}`;
+
+        let rawMedia = Array.isArray(recuerdo.media) ? recuerdo.media.slice() : [];
+        if (!rawMedia.length && Array.isArray(recuerdo.fotos)) {
+            rawMedia = recuerdo.fotos.map(url => ({ url, type: 'image' }));
+        }
+        if (!rawMedia.length && recuerdo.foto) {
+            rawMedia = [{ url: recuerdo.foto, type: 'image' }];
+        }
+
+        const media = [];
+        rawMedia.forEach((item, index) => {
+            if (!item || !item.url) return;
+            const url = String(item.url);
+            const type = item.type === 'video' || /\.(mp4|webm|mov|mkv|m4v|avi)(\?|#|$)/i.test(url) ? 'video' : 'image';
+            media.push({
+                key: `${memoryKey}#${index}`,
+                memKey: memoryKey,
+                url,
+                type,
+                date,
+                title: recuerdo.titulo || 'Recuerdo',
+                recuerdo,
+                order: index
+            });
+        });
+
+        if (!groupsByMonth.has(monthKey)) {
+            groupsByMonth.set(monthKey, {
+                monthKey,
+                label: formatDownloadMonth(monthKey),
+                days: new Map()
+            });
+        }
+        const group = groupsByMonth.get(monthKey);
+        if (!group.days.has(date)) {
+            group.days.set(date, { date, memories: [], images: 0, videos: 0 });
+        }
+        const day = group.days.get(date);
+        day.memories.push({
+            key: memoryKey,
+            recuerdo,
+            date,
+            media
+        });
+        day.images += media.filter(file => file.type === 'image').length;
+        day.videos += media.filter(file => file.type === 'video').length;
+        mediaIndex.push(...media);
+    });
+
+    const groups = Array.from(groupsByMonth.values()).map(group => {
+        const days = Array.from(group.days.values()).sort((a, b) => {
+            const aKey = a.date === 'sin-fecha' ? '' : a.date;
+            const bKey = b.date === 'sin-fecha' ? '' : b.date;
+            return bKey.localeCompare(aKey);
+        });
+        return { ...group, days };
+    }).sort((a, b) => {
+        const aKey = a.monthKey === 'sin-fecha' ? '' : a.monthKey;
+        const bKey = b.monthKey === 'sin-fecha' ? '' : b.monthKey;
+        return bKey.localeCompare(aKey);
+    });
+
+    downloadState.groups = groups;
+    downloadState.mediaIndex = mediaIndex;
+}
+
+function renderDownloadDateList() {
+    const container = document.getElementById('downloadDateList');
+    if (!container) return;
+
+    if (!downloadState.groups.length) {
+        container.innerHTML = '<p style="text-align:center;padding:20px;color:var(--text-muted);">No hay fechas disponibles.</p>';
+        return;
+    }
+
+    container.innerHTML = downloadState.groups.map(group => `
+        <div class="download-month-block">
+            <label class="download-month-header">
+                <input type="checkbox" data-month="${escapeAttr(group.monthKey)}"
+                    onchange="toggleDownloadMonth(this.dataset.month, this.checked)">
+                <span>${escapeHtml(group.label)}</span>
+            </label>
+            ${group.days.map(day => `
+                <label class="download-day-row">
+                    <input type="checkbox" data-date="${escapeAttr(day.date)}"
+                        onchange="toggleDownloadDate(this.dataset.date, this.checked)">
+                    <span class="download-day-date">${escapeHtml(formatDownloadDay(day.date))}</span>
+                    <span class="download-day-meta">${downloadCount(day.memories.length, 'recuerdo', 'recuerdos')} · ${downloadCount(day.images, 'foto', 'fotos')} · ${downloadCount(day.videos, 'video', 'videos')}</span>
+                </label>
+            `).join('')}
+        </div>
+    `).join('');
+
+    syncDownloadDateChecks();
+}
+
+function syncDownloadDateChecks() {
+    document.querySelectorAll('#downloadDateList input[data-date]').forEach(checkbox => {
+        checkbox.checked = downloadState.selectedDates.has(checkbox.dataset.date);
+    });
+    document.querySelectorAll('#downloadDateList input[data-month]').forEach(checkbox => {
+        const group = downloadState.groups.find(item => item.monthKey === checkbox.dataset.month);
+        if (!group) {
+            checkbox.checked = false;
+            checkbox.indeterminate = false;
+            return;
+        }
+        const selected = group.days.filter(day => downloadState.selectedDates.has(day.date)).length;
+        checkbox.checked = selected > 0 && selected === group.days.length;
+        checkbox.indeterminate = selected > 0 && selected < group.days.length;
+    });
+}
+
+function toggleDownloadDate(date, checked) {
+    if (checked) downloadState.selectedDates.add(date);
+    else downloadState.selectedDates.delete(date);
+    syncDownloadDateChecks();
+    updateDownloadSummary();
+}
+
+function toggleDownloadMonth(monthKey, checked) {
+    const group = downloadState.groups.find(item => item.monthKey === monthKey);
+    if (!group) return;
+    group.days.forEach(day => {
+        if (checked) downloadState.selectedDates.add(day.date);
+        else downloadState.selectedDates.delete(day.date);
+    });
+    syncDownloadDateChecks();
+    updateDownloadSummary();
+}
+
+function getFilteredDownloadMedia() {
+    if (downloadState.mediaFilter === 'all') return downloadState.mediaIndex;
+    return downloadState.mediaIndex.filter(file => file.type === downloadState.mediaFilter);
+}
+
+function getDownloadThumbnail(file) {
+    if (file.type !== 'image') return '';
+    if (file.url.includes('res.cloudinary.com') && file.url.includes('/upload/') && !file.url.includes('/upload/q_auto') && !file.url.includes('/upload/w_')) {
+        return file.url.replace('/upload/', '/upload/w_240,h_170,c_fill,q_auto,f_auto/');
+    }
+    return file.url;
+}
+
+function renderDownloadMediaGrid() {
+    const container = document.getElementById('downloadMediaGrid');
+    if (!container) return;
+
+    const files = getFilteredDownloadMedia();
+    if (!files.length) {
+        container.innerHTML = '<p style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text-muted);">No hay archivos para este filtro.</p>';
+        return;
+    }
+
+    container.innerHTML = files.map(file => {
+        const caption = `${formatDownloadDay(file.date)} · ${file.title}`;
+        const preview = file.type === 'video'
+            ? '<div class="download-media-video"><i class="fa-solid fa-video"></i></div>'
+            : `<img src="${escapeHtml(getDownloadThumbnail(file))}" alt="" loading="lazy">`;
+        return `
+            <div class="download-media-card">
+                ${preview}
+                <label title="${escapeAttr(caption)}">
+                    <input type="checkbox" data-media-key="${escapeAttr(file.key)}"
+                        ${downloadState.selectedMedia.has(file.key) ? 'checked' : ''}
+                        onchange="toggleDownloadMedia(this.dataset.mediaKey, this.checked)">
+                    <span class="download-media-caption">${escapeHtml(caption)}</span>
+                </label>
+            </div>
+        `;
+    }).join('');
+}
+
+function toggleDownloadMedia(key, checked) {
+    if (checked) downloadState.selectedMedia.add(key);
+    else downloadState.selectedMedia.delete(key);
+    updateDownloadSummary();
+}
+
+function setDownloadTab(tab) {
+    downloadState.tab = tab === 'media' ? 'media' : 'fecha';
+    document.querySelectorAll('.download-tab').forEach(button => {
+        button.classList.toggle('active', button.dataset.downloadTab === downloadState.tab);
+    });
+    const datePane = document.getElementById('download-tab-fecha');
+    const mediaPane = document.getElementById('download-tab-media');
+    if (datePane) datePane.style.display = downloadState.tab === 'fecha' ? 'block' : 'none';
+    if (mediaPane) mediaPane.style.display = downloadState.tab === 'media' ? 'block' : 'none';
+    updateDownloadSummary();
+}
+
+function setDownloadMediaFilter(filter) {
+    downloadState.mediaFilter = ['image', 'video'].includes(filter) ? filter : 'all';
+    renderDownloadMediaGrid();
+}
+
+function downloadSelectAll() {
+    downloadState.groups.forEach(group => {
+        group.days.forEach(day => downloadState.selectedDates.add(day.date));
+    });
+    syncDownloadDateChecks();
+    updateDownloadSummary();
+}
+
+function downloadSelectCurrentMonth() {
+    selectDownloadMonthByOffset(0);
+}
+
+function downloadSelectPreviousMonth() {
+    selectDownloadMonthByOffset(-1);
+}
+
+function selectDownloadMonthByOffset(offset) {
+    const now = new Date();
+    const target = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+    const monthKey = `${target.getFullYear()}-${downloadPad(target.getMonth() + 1)}`;
+    const group = downloadState.groups.find(item => item.monthKey === monthKey);
+    if (!group) {
+        if (window.showToast) window.showToast('No hay recuerdos en ese mes.');
+        return;
+    }
+    group.days.forEach(day => downloadState.selectedDates.add(day.date));
+    syncDownloadDateChecks();
+    updateDownloadSummary();
+}
+
+function downloadSelectRange() {
+    const start = document.getElementById('downloadRangeStart')?.value;
+    const end = document.getElementById('downloadRangeEnd')?.value;
+    if (!start || !end) {
+        showDownloadError('Elige la fecha inicial y la final.');
+        return;
+    }
+    if (start > end) {
+        showDownloadError('La fecha inicial no puede ser posterior a la final.');
+        return;
+    }
+
+    clearDownloadError();
+    let found = 0;
+    downloadState.groups.forEach(group => {
+        group.days.forEach(day => {
+            if (day.date !== 'sin-fecha' && day.date >= start && day.date <= end) {
+                downloadState.selectedDates.add(day.date);
+                found++;
+            }
+        });
+    });
+    syncDownloadDateChecks();
+    updateDownloadSummary();
+    if (!found && window.showToast) window.showToast('No hay recuerdos en ese rango de fechas.');
+}
+
+function downloadClearSelection() {
+    downloadState.selectedDates.clear();
+    downloadState.selectedMedia.clear();
+    syncDownloadDateChecks();
+    renderDownloadMediaGrid();
+    updateDownloadSummary();
+    clearDownloadError();
+}
+
+function downloadSelectAllVisibleMedia() {
+    getFilteredDownloadMedia().forEach(file => downloadState.selectedMedia.add(file.key));
+    renderDownloadMediaGrid();
+    updateDownloadSummary();
+}
+
+function collectDownloadItems() {
+    const includeVideos = !!document.getElementById('downloadIncludeVideos')?.checked;
+    const includeText = !!document.getElementById('downloadIncludeText')?.checked;
+    const byMemory = new Map();
+
+    if (downloadState.tab === 'fecha') {
+        downloadState.groups.forEach(group => {
+            group.days.forEach(day => {
+                if (!downloadState.selectedDates.has(day.date)) return;
+                day.memories.forEach(memory => {
+                    const media = memory.media.filter(file => includeVideos || file.type === 'image');
+                    byMemory.set(memory.key, {
+                        key: memory.key,
+                        recuerdo: memory.recuerdo,
+                        date: day.date,
+                        media: media.slice()
+                    });
+                });
+            });
+        });
+    } else {
+        downloadState.mediaIndex.forEach(file => {
+            if (!downloadState.selectedMedia.has(file.key)) return;
+            if (!byMemory.has(file.memKey)) {
+                byMemory.set(file.memKey, {
+                    key: file.memKey,
+                    recuerdo: file.recuerdo,
+                    date: file.date,
+                    media: []
+                });
+            }
+            byMemory.get(file.memKey).media.push(file);
+        });
+    }
+
+    const items = Array.from(byMemory.values()).filter(item => {
+        return item.media.length > 0 || (includeText && (item.recuerdo.titulo || item.recuerdo.descripcion));
+    });
+
+    items.sort((a, b) => {
+        const aDate = a.date === 'sin-fecha' ? '9999-99-99' : a.date;
+        const bDate = b.date === 'sin-fecha' ? '9999-99-99' : b.date;
+        if (aDate !== bDate) return aDate.localeCompare(bDate);
+        return String(a.recuerdo.titulo || '').localeCompare(String(b.recuerdo.titulo || ''), 'es');
+    });
+
+    return items;
+}
+
+function getDownloadStats() {
+    const items = collectDownloadItems();
+    const files = [];
+    items.forEach(item => item.media.forEach(file => files.push(file)));
+    return {
+        items,
+        files,
+        images: files.filter(file => file.type === 'image').length,
+        videos: files.filter(file => file.type === 'video').length,
+        dates: new Set(items.map(item => item.date)).size
+    };
+}
+
+function updateDownloadSummary() {
+    const summary = document.getElementById('downloadSummary');
+    if (!summary) return;
+
+    if (!downloadState.groups.length) {
+        summary.textContent = 'Aún no hay recuerdos para descargar.';
+        return;
+    }
+
+    const stats = getDownloadStats();
+    if (!stats.items.length) {
+        summary.textContent = 'Selecciona al menos un día, una foto o un video.';
+        return;
+    }
+
+    const format = document.querySelector('input[name="downloadFormat"]:checked')?.value || 'zip';
+    const includeText = !!document.getElementById('downloadIncludeText')?.checked;
+    const includeSong = !!document.getElementById('downloadIncludeSong')?.checked;
+    const parts = [];
+
+    if (downloadState.tab === 'fecha') parts.push(downloadCount(stats.dates, 'día', 'días'));
+    parts.push(downloadCount(stats.items.length, 'recuerdo', 'recuerdos'));
+    parts.push(downloadCount(stats.images, 'foto', 'fotos'));
+    parts.push(downloadCount(stats.videos, 'video', 'videos'));
+    if (includeText) parts.push('descripciones + manifiesto');
+    if (includeSong) parts.push('canción');
+
+    const hint = format === 'zip'
+        ? ' Se calculará el tamaño antes de crear el ZIP.'
+        : ' El navegador puede pedir permiso para descargar varios archivos.';
+
+    summary.innerHTML = `${escapeHtml(parts.join(' · '))}.<br><span style="color:var(--text-muted);font-size:0.82rem;">Formato: ${format === 'zip' ? 'ZIP' : 'archivos individuales'}.${escapeHtml(hint)}</span>`;
+}
+
+function showDownloadError(message) {
+    const element = document.getElementById('downloadError');
+    if (element) element.textContent = message || '';
+}
+
+function clearDownloadError() {
+    showDownloadError('');
+}
+
+async function verifyDownloadPassword() {
+    const input = document.getElementById('downloadPassword');
+    const value = input ? input.value.trim() : '';
+    if (!value) {
+        showDownloadError('Escribe la contraseña para descargar.');
+        if (input) input.focus();
+        return false;
+    }
+    try {
+        const hash = await sha256Hex(value);
+        if (hash !== DOWNLOAD_PASSWORD_SHA256) {
+            showDownloadError('Contraseña incorrecta.');
+            if (input) input.select();
+            return false;
+        }
+        return true;
+    } catch (error) {
+        showDownloadError('El navegador no pudo verificar la contraseña. Abre la página con HTTPS o en localhost.');
+        return false;
+    }
+}
+
+function setDownloadProgress(done, total, detail) {
+    const fill = document.getElementById('downloadProgressFill');
+    const detailElement = document.getElementById('downloadProgressDetail');
+    const percent = total > 0 ? Math.min(100, Math.max(0, (done / total) * 100)) : 0;
+    if (fill) fill.style.width = `${percent.toFixed(1)}%`;
+    if (detailElement && detail) detailElement.textContent = detail;
+}
+
+function beginDownloadProgress(title) {
+    const setup = document.getElementById('download-setup');
+    const progress = document.getElementById('download-progress');
+    const titleElement = document.getElementById('downloadProgressTitle');
+    const detailElement = document.getElementById('downloadProgressDetail');
+    const fill = document.getElementById('downloadProgressFill');
+    const button = document.getElementById('downloadCancelBtn');
+    if (setup) setup.style.display = 'none';
+    if (progress) progress.style.display = 'block';
+    if (titleElement) titleElement.textContent = title || 'Preparando descarga...';
+    if (detailElement) detailElement.textContent = '';
+    if (fill) fill.style.width = '0%';
+    if (button) {
+        button.textContent = 'Cancelar';
+        button.disabled = false;
+    }
+}
+
+function hideDownloadProgress() {
+    const setup = document.getElementById('download-setup');
+    const progress = document.getElementById('download-progress');
+    if (setup) setup.style.display = 'block';
+    if (progress) progress.style.display = 'none';
+}
+
+function finishDownloadProgress(title, detail) {
+    const titleElement = document.getElementById('downloadProgressTitle');
+    const detailElement = document.getElementById('downloadProgressDetail');
+    const fill = document.getElementById('downloadProgressFill');
+    const button = document.getElementById('downloadCancelBtn');
+    if (titleElement) titleElement.textContent = title;
+    if (detailElement) detailElement.textContent = detail || '';
+    if (fill) fill.style.width = '100%';
+    if (button) {
+        button.textContent = 'Cerrar';
+        button.disabled = false;
+    }
+}
+
+function openDownloadModal() {
+    if (downloadState.running) return;
+    const modal = document.getElementById('downloadModal');
+    if (!modal) return;
+
+    if (!recuerdos.length) {
+        if (window.showToast) window.showToast('Aún no hay recuerdos cargados. Espera un momento e inténtalo de nuevo.');
+        return;
+    }
+
+    buildDownloadData();
+    downloadState.tab = 'fecha';
+    downloadState.mediaFilter = 'all';
+    downloadState.selectedDates.clear();
+    downloadState.selectedMedia.clear();
+    downloadState.cancelled = false;
+
+    const password = document.getElementById('downloadPassword');
+    if (password) password.value = '';
+    const rangeStart = document.getElementById('downloadRangeStart');
+    const rangeEnd = document.getElementById('downloadRangeEnd');
+    if (rangeStart) rangeStart.value = '';
+    if (rangeEnd) rangeEnd.value = '';
+
+    document.querySelectorAll('input[name="downloadMediaFilter"]').forEach(radio => {
+        radio.checked = radio.value === 'all';
+    });
+    document.querySelectorAll('input[name="downloadFormat"]').forEach(radio => {
+        radio.checked = radio.value === 'zip';
+    });
+    ['downloadIncludeText', 'downloadIncludeSong', 'downloadEmbedMetadata', 'downloadIncludeVideos'].forEach(id => {
+        const element = document.getElementById(id);
+        if (element) element.checked = true;
+    });
+
+    clearDownloadError();
+    hideDownloadProgress();
+    setDownloadTab('fecha');
+    renderDownloadDateList();
+    renderDownloadMediaGrid();
+    updateDownloadSummary();
+    modal.style.display = 'block';
+}
+
+function closeDownloadModal() {
+    if (downloadState.running) {
+        if (window.showToast) window.showToast('Cancela la descarga antes de cerrar.');
+        return;
+    }
+    const modal = document.getElementById('downloadModal');
+    if (modal) modal.style.display = 'none';
+    hideDownloadProgress();
+    clearDownloadError();
+}
+
+function cancelDownload() {
+    if (!downloadState.running) {
+        closeDownloadModal();
+        return;
+    }
+    downloadState.cancelled = true;
+    if (downloadState.abortController) {
+        try {
+            downloadState.abortController.abort();
+        } catch (error) {
+            // Ignorar
+        }
+    }
+    const title = document.getElementById('downloadProgressTitle');
+    if (title) title.textContent = 'Cancelando descarga...';
+    const button = document.getElementById('downloadCancelBtn');
+    if (button) button.disabled = true;
+}
+
+function sanitizeDownloadName(value, fallback = 'Recuerdo') {
+    let name = String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^\x20-\x7E]/g, ' ')
+        .replace(/[\x00-\x1F<>:"/\\|?*]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replace(/[. ]+$/g, '');
+    if (!name) name = fallback;
+    name = Array.from(name).slice(0, 60).join('').trim();
+    if (!name) name = fallback;
+    if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(name)) name = `_${name}`;
+    return name;
+}
+
+function getDownloadExtension(url, type) {
+    try {
+        const parsed = new URL(url, location.href);
+        const last = parsed.pathname.split('/').pop() || '';
+        const match = last.match(/\.([a-z0-9]{2,5})$/i);
+        if (match) {
+            const extension = match[1].toLowerCase();
+            if (['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif', 'bmp', 'tif', 'tiff', 'mp4', 'webm', 'mov', 'mkv', 'm4v', 'avi'].includes(extension)) {
+                return extension;
+            }
+        }
+    } catch (error) {
+        // Ignorar URL inválida
+    }
+    return type === 'video' ? 'mp4' : 'jpg';
+}
+
+function uniqueDownloadName(base, usedNames) {
+    let name = base;
+    let counter = 2;
+    while (usedNames.has(name.toLowerCase())) {
+        name = `${base} (${counter})`;
+        counter++;
+    }
+    usedNames.add(name.toLowerCase());
+    return name;
+}
+
+function uniqueDownloadFileName(base, extension, usedNames) {
+    let name = `${base}.${extension}`;
+    let counter = 2;
+    while (usedNames.has(name.toLowerCase())) {
+        name = `${base} (${counter}).${extension}`;
+        counter++;
+    }
+    usedNames.add(name.toLowerCase());
+    return name;
+}
+
+function buildMemoryFolderName(item) {
+    const date = item.date === 'sin-fecha' ? 'Sin fecha' : item.date;
+    const title = sanitizeDownloadName(item.recuerdo.titulo || 'Recuerdo', 'Recuerdo');
+    return `${date} - ${title}`;
+}
+
+function suggestedFlatNameBase(item, file, number) {
+    const date = item.date === 'sin-fecha' ? 'Sin fecha' : item.date;
+    const title = sanitizeDownloadName(item.recuerdo.titulo || 'Recuerdo', 'Recuerdo');
+    return `${date} - ${title} - ${downloadPad(number)} - ${file.type === 'video' ? 'video' : 'foto'}`;
+}
+
+function suggestedFlatName(item, file, number) {
+    return `${suggestedFlatNameBase(item, file, number)}.${getDownloadExtension(file.url, file.type)}`;
+}
+
+function getUniqueDownloadDates(stats) {
+    return Array.from(new Set(stats.items.map(item => item.date)))
+        .filter(date => date !== 'sin-fecha')
+        .sort();
+}
+
+function getDownloadRootName(stats) {
+    if (downloadState.tab === 'media') return 'Multimedia_seleccionada';
+    const dates = getUniqueDownloadDates(stats);
+    if (!dates.length) return 'Recuerdos_sin_fecha';
+    const months = Array.from(new Set(dates.map(date => date.slice(0, 7))));
+    if (dates.length === 1) return `Recuerdos_${dates[0]}`;
+    if (months.length === 1) return `Recuerdos_${months[0]}`;
+    return `Recuerdos_${dates[0]}_a_${dates[dates.length - 1]}`;
+}
+
+function buildDownloadManifest(stats) {
+    return {
+        generado: new Date().toISOString(),
+        origen: location.href,
+        totales: {
+            recuerdos: stats.items.length,
+            archivos: stats.files.length,
+            fotos: stats.images,
+            videos: stats.videos
+        },
+        recuerdos: stats.items.map(item => ({
+            fecha: item.date === 'sin-fecha' ? null : item.date,
+            titulo: item.recuerdo.titulo || '',
+            descripcion: item.recuerdo.descripcion || '',
+            tipo: item.recuerdo.tipo || '',
+            archivos: item.media.map((file, index) => ({
+                orden: index + 1,
+                tipo: file.type,
+                nombreSugerido: suggestedFlatName(item, file, index + 1),
+                origen: file.url.startsWith('data:') ? 'incrustado en Firestore' : 'Cloudinary',
+                urlOriginal: file.url.startsWith('data:') ? null : file.url
+            }))
+        }))
+    };
+}
+
+function buildDescriptionText(item) {
+    const lines = [];
+    lines.push(item.recuerdo.titulo || 'Recuerdo');
+    lines.push(`Fecha: ${formatDownloadDay(item.date)}`);
+    if (item.recuerdo.tipo) lines.push(`Tipo: ${item.recuerdo.tipo}`);
+    lines.push('');
+    lines.push(item.recuerdo.descripcion || 'Sin descripción.');
+    lines.push('');
+    lines.push(`Archivos (${item.media.length}):`);
+    item.media.forEach((file, index) => {
+        const source = file.url.startsWith('data:') ? '(imagen incrustada en la base de datos)' : file.url;
+        lines.push(`${downloadPad(index + 1)}. ${file.type === 'video' ? 'Video' : 'Foto'} — ${source}`);
+    });
+    return lines.join('\r\n');
+}
+
+function buildAllDescriptions(items) {
+    const lines = [];
+    lines.push('RECUERDOS DESCARGADOS');
+    lines.push(`Generado: ${new Date().toLocaleString('es-ES')}`);
+    lines.push(`Total de recuerdos: ${items.length}`);
+    lines.push('='.repeat(50));
+    items.forEach(item => {
+        lines.push('');
+        lines.push(`${formatDownloadDay(item.date)} — ${item.recuerdo.titulo || 'Recuerdo'}`);
+        if (item.recuerdo.tipo) lines.push(`Tipo: ${item.recuerdo.tipo}`);
+        lines.push(item.recuerdo.descripcion || 'Sin descripción.');
+        lines.push('');
+    });
+    return lines.join('\r\n');
+}
+
+function buildErrorsText(errors) {
+    const lines = ['ARCHIVOS QUE NO SE PUDIERON DESCARGAR', `Generado: ${new Date().toLocaleString('es-ES')}`, ''];
+    errors.forEach((error, index) => {
+        lines.push(`${index + 1}. ${error.archivo}`);
+        if (error.url) lines.push(`   URL: ${error.url}`);
+        lines.push(`   Error: ${error.error}`);
+        lines.push('');
+    });
+    return lines.join('\r\n');
+}
+
+function formatBytes(bytes) {
+    if (!bytes || bytes < 1024) return `${Math.max(0, Math.round(bytes || 0))} B`;
+    const units = ['KB', 'MB', 'GB'];
+    let value = bytes / 1024;
+    let index = 0;
+    while (value >= 1024 && index < units.length - 1) {
+        value /= 1024;
+        index++;
+    }
+    return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[index]}`;
+}
+
+function isDownloadAbort(error, signal) {
+    return (signal && signal.aborted) || (error && error.name === 'AbortError');
+}
+
+async function fetchDownloadBlob(url, signal) {
+    let lastError = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+        if (signal.aborted) throw new DOMException('Cancelado', 'AbortError');
+        try {
+            const response = await fetch(url, { mode: 'cors', signal });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return await response.blob();
+        } catch (error) {
+            lastError = error;
+            if (isDownloadAbort(error, signal)) throw error;
+            if (attempt === 0) await downloadDelay(600);
+        }
+    }
+    throw lastError || new Error('No se pudo descargar el archivo.');
+}
+
+async function fetchDownloadContentLength(url, signal) {
+    try {
+        const response = await fetch(url, { method: 'HEAD', mode: 'cors', signal });
+        if (!response.ok) return 0;
+        const length = Number(response.headers.get('content-length') || 0);
+        return Number.isFinite(length) && length > 0 ? length : 0;
+    } catch (error) {
+        if (isDownloadAbort(error, signal)) throw error;
+        return 0;
+    }
+}
+
+async function estimateDownloadSize(files, signal) {
+    if (!files.length) return { total: 0, known: 0 };
+    let total = 0;
+    let known = 0;
+    let done = 0;
+    const queue = files.slice();
+    const workerCount = Math.min(6, queue.length);
+
+    async function worker() {
+        while (queue.length) {
+            if (signal.aborted) throw new DOMException('Cancelado', 'AbortError');
+            const file = queue.shift();
+            const length = await fetchDownloadContentLength(file.url, signal);
+            total += length > 0 ? length : (file.type === 'video' ? 13 * 1024 * 1024 : 150 * 1024);
+            if (length > 0) known++;
+            done++;
+            setDownloadProgress(done, files.length, `Calculando tamaño... ${done}/${files.length}`);
+        }
+    }
+
+    await Promise.all(Array.from({ length: workerCount }, () => worker()));
+    return { total, known };
+}
+
+function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error || new Error('No se pudo leer la imagen.'));
+        reader.readAsDataURL(blob);
+    });
+}
+
+function dataUrlToBlob(dataUrl) {
+    return fetch(dataUrl).then(response => response.blob());
+}
+
+function toExifAscii(value) {
+    return String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^\x20-\x7E]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function toUtf16LeBytes(value) {
+    const bytes = [];
+    for (const character of String(value || '')) {
+        const code = character.codePointAt(0);
+        if (code > 0xFFFF) {
+            const high = 0xD800 + ((code - 0x10000) >> 10);
+            const low = 0xDC00 + ((code - 0x10000) & 0x3FF);
+            bytes.push(high & 0xFF, high >> 8, low & 0xFF, low >> 8);
+        } else {
+            bytes.push(code & 0xFF, code >> 8);
+        }
+    }
+    bytes.push(0, 0);
+    return bytes;
+}
+
+async function embedExifMetadata(blob, file) {
+    const dataUrl = await blobToDataUrl(blob);
+    const date = file.date && file.date !== 'sin-fecha' ? file.date : downloadToIsoDate(new Date());
+    const exifDate = `${date.replace(/-/g, ':')} 12:00:00`;
+    const title = file.title || file.recuerdo?.titulo || 'Recuerdo';
+    const description = file.recuerdo?.descripcion || '';
+    const exifObj = {
+        '0th': {
+            [piexif.ImageIFD.ImageDescription]: toExifAscii(title) || 'Recuerdo',
+            [piexif.ImageIFD.DateTime]: exifDate,
+            [piexif.ImageIFD.XPTitle]: toUtf16LeBytes(title),
+            [piexif.ImageIFD.XPComment]: toUtf16LeBytes(description),
+            [piexif.ImageIFD.XPKeywords]: toUtf16LeBytes(`recuerdos;${date};${title}`),
+            [piexif.ImageIFD.XPSubject]: toUtf16LeBytes(title)
+        },
+        'Exif': {
+            [piexif.ExifIFD.DateTimeOriginal]: exifDate,
+            [piexif.ExifIFD.UserComment]: toExifAscii(description)
+        },
+        'GPS': {},
+        '1st': {},
+        'thumbnail': null
+    };
+    const exifBytes = piexif.dump(exifObj);
+    const newDataUrl = piexif.insert(exifBytes, dataUrl);
+    return dataUrlToBlob(newDataUrl);
+}
+
+async function maybeEmbedExif(blob, file, embed) {
+    if (!embed || file.type !== 'image' || typeof piexif === 'undefined') return blob;
+    const mime = String(blob.type || '').toLowerCase();
+    const extension = getDownloadExtension(file.url, file.type);
+    const isJpeg = mime === 'image/jpeg' || mime === 'image/jpg' || (!mime && /^jpe?g$/i.test(extension));
+    if (!isJpeg) return blob;
+    try {
+        return await embedExifMetadata(blob, file);
+    } catch (error) {
+        console.warn('No se pudieron incrustar los metadatos EXIF:', error);
+        return blob;
+    }
+}
+
+function triggerBlobDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.rel = 'noopener';
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+async function runZipDownload(stats, options) {
+    const signal = downloadState.abortController.signal;
+    const titleElement = document.getElementById('downloadProgressTitle');
+    if (titleElement) titleElement.textContent = 'Calculando tamaño del ZIP...';
+
+    const estimated = await estimateDownloadSize(stats.files, signal);
+    if (downloadState.cancelled) throw new DOMException('Cancelado', 'AbortError');
+
+    if (estimated.total > ZIP_HARD_LIMIT_BYTES) {
+        throw new Error(`El ZIP pesaría aproximadamente ${formatBytes(estimated.total)}. Es demasiado grande para el navegador; elige menos días (por ejemplo, un mes) o usa el formato Individual.`);
+    }
+    if (estimated.total > ZIP_WARN_BYTES) {
+        const proceed = window.confirm(`El ZIP pesaría aproximadamente ${formatBytes(estimated.total)} y podría tardar o fallar en equipos con poca memoria. ¿Continuar con el ZIP?`);
+        if (!proceed) throw new DOMException('Cancelado', 'AbortError');
+    }
+
+    if (typeof JSZip === 'undefined') {
+        throw new Error('La librería ZIP no se cargó. Recarga la página e inténtalo de nuevo.');
+    }
+
+    if (titleElement) titleElement.textContent = 'Empaquetando archivos...';
+
+    const zip = new JSZip();
+    const rootName = getDownloadRootName(stats);
+    const root = zip.folder(rootName);
+    const dates = getUniqueDownloadDates(stats);
+    const useDayFolders = downloadState.tab === 'fecha' && dates.length > 1;
+    const dayFolders = new Map();
+    const usedFolderNames = new Set();
+    const errors = [];
+    let processed = 0;
+    const totalUnits = stats.files.length
+        + (options.includeText ? stats.items.length + 2 : 0)
+        + (options.includeSong ? 1 : 0);
+
+    if (options.includeSong) {
+        try {
+            const songUrl = new URL(DOWNLOAD_SONG_FILE, location.href).href;
+            const songBlob = await fetchDownloadBlob(songUrl, signal);
+            root.file(DOWNLOAD_SONG_FILE, songBlob);
+        } catch (error) {
+            if (isDownloadAbort(error, signal)) throw error;
+            errors.push({ archivo: DOWNLOAD_SONG_FILE, url: '', error: error.message });
+        }
+        processed++;
+        setDownloadProgress(processed, totalUnits, `Canción incluida (${processed}/${totalUnits})`);
+    }
+
+    if (options.includeText) {
+        root.file('manifest.json', JSON.stringify(buildDownloadManifest(stats), null, 2));
+        root.file('descripciones.txt', buildAllDescriptions(stats.items));
+        processed += 2;
+        setDownloadProgress(processed, totalUnits, `Manifiesto incluido (${processed}/${totalUnits})`);
+    }
+
+    for (const item of stats.items) {
+        if (downloadState.cancelled) throw new DOMException('Cancelado', 'AbortError');
+
+        let parent = root;
+        if (useDayFolders) {
+            const dayName = item.date === 'sin-fecha' ? 'Sin fecha' : item.date;
+            if (!dayFolders.has(dayName)) dayFolders.set(dayName, root.folder(dayName));
+            parent = dayFolders.get(dayName);
+        }
+
+        const folder = parent.folder(uniqueDownloadName(buildMemoryFolderName(item), usedFolderNames));
+
+        if (options.includeText) {
+            folder.file('descripcion.txt', buildDescriptionText(item));
+            processed++;
+            setDownloadProgress(processed, totalUnits, `Texto de "${item.recuerdo.titulo || 'Recuerdo'}" (${processed}/${totalUnits})`);
+        }
+
+        for (let index = 0; index < item.media.length; index++) {
+            if (downloadState.cancelled) throw new DOMException('Cancelado', 'AbortError');
+            const file = item.media[index];
+            const fileName = `${downloadPad(index + 1)} - ${file.type === 'video' ? 'video' : 'foto'}.${getDownloadExtension(file.url, file.type)}`;
+            try {
+                let blob = await fetchDownloadBlob(file.url, signal);
+                blob = await maybeEmbedExif(blob, file, options.embedMetadata);
+                folder.file(fileName, blob);
+            } catch (error) {
+                if (isDownloadAbort(error, signal)) throw error;
+                errors.push({ archivo: `${folder.name}/${fileName}`, url: file.url, error: error.message });
+            }
+            processed++;
+            setDownloadProgress(processed, totalUnits, `Descargando ${processed}/${totalUnits}: ${fileName}`);
+        }
+    }
+
+    if (errors.length) {
+        root.file('errores.txt', buildErrorsText(errors));
+    }
+
+    if (downloadState.cancelled) throw new DOMException('Cancelado', 'AbortError');
+
+    if (titleElement) titleElement.textContent = 'Creando el ZIP...';
+    const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' }, metadata => {
+        setDownloadProgress(metadata.percent, 100, `Creando el ZIP... ${Math.round(metadata.percent)}%`);
+    });
+
+    if (downloadState.cancelled) throw new DOMException('Cancelado', 'AbortError');
+
+    triggerBlobDownload(zipBlob, `${rootName}.zip`);
+    const detail = `${stats.files.length} archivos · ${downloadCount(stats.items.length, 'recuerdo', 'recuerdos')}${errors.length ? ` · ${errors.length} error(es) en errores.txt` : ''}`;
+    finishDownloadProgress('¡ZIP descargado!', detail);
+    if (window.showToast) window.showToast('ZIP descargado correctamente.');
+}
+
+async function runIndividualDownload(stats, options) {
+    const signal = downloadState.abortController.signal;
+    const usedNames = new Set();
+    const errors = [];
+    let processed = 0;
+    const totalUnits = stats.files.length
+        + (options.includeText ? 2 : 0)
+        + (options.includeSong ? 1 : 0);
+
+    if (options.includeText) {
+        triggerBlobDownload(
+            new Blob([JSON.stringify(buildDownloadManifest(stats), null, 2)], { type: 'application/json' }),
+            'manifest.json'
+        );
+        processed++;
+        setDownloadProgress(processed, totalUnits, `Manifiesto descargado (${processed}/${totalUnits})`);
+        await downloadDelay(400);
+
+        triggerBlobDownload(
+            new Blob([buildAllDescriptions(stats.items)], { type: 'text/plain;charset=utf-8' }),
+            'descripciones.txt'
+        );
+        processed++;
+        setDownloadProgress(processed, totalUnits, `Descripciones descargadas (${processed}/${totalUnits})`);
+        await downloadDelay(400);
+        if (downloadState.cancelled) throw new DOMException('Cancelado', 'AbortError');
+    }
+
+    if (options.includeSong) {
+        try {
+            const songUrl = new URL(DOWNLOAD_SONG_FILE, location.href).href;
+            const songBlob = await fetchDownloadBlob(songUrl, signal);
+            triggerBlobDownload(songBlob, DOWNLOAD_SONG_FILE);
+        } catch (error) {
+            if (isDownloadAbort(error, signal)) throw error;
+            errors.push({ archivo: DOWNLOAD_SONG_FILE, url: '', error: error.message });
+        }
+        processed++;
+        setDownloadProgress(processed, totalUnits, `Canción descargada (${processed}/${totalUnits})`);
+        await downloadDelay(400);
+        if (downloadState.cancelled) throw new DOMException('Cancelado', 'AbortError');
+    }
+
+    for (const item of stats.items) {
+        for (let index = 0; index < item.media.length; index++) {
+            if (downloadState.cancelled) throw new DOMException('Cancelado', 'AbortError');
+            const file = item.media[index];
+            const baseName = suggestedFlatNameBase(item, file, index + 1);
+            const extension = getDownloadExtension(file.url, file.type);
+            try {
+                let blob = await fetchDownloadBlob(file.url, signal);
+                blob = await maybeEmbedExif(blob, file, options.embedMetadata);
+                const fileName = uniqueDownloadFileName(baseName, extension, usedNames);
+                triggerBlobDownload(blob, fileName);
+                processed++;
+                setDownloadProgress(processed, totalUnits, `Descargando ${processed}/${totalUnits}: ${fileName}`);
+            } catch (error) {
+                if (isDownloadAbort(error, signal)) throw error;
+                errors.push({ archivo: `${baseName}.${extension}`, url: file.url, error: error.message });
+                processed++;
+                setDownloadProgress(processed, totalUnits, `Error al descargar ${baseName}.${extension}`);
+            }
+            await downloadDelay(350);
+        }
+    }
+
+    if (errors.length) {
+        triggerBlobDownload(
+            new Blob([buildErrorsText(errors)], { type: 'text/plain;charset=utf-8' }),
+            'errores.txt'
+        );
+    }
+
+    const detail = `${stats.files.length} archivos${errors.length ? ` · ${errors.length} error(es) en errores.txt` : ''}`;
+    finishDownloadProgress('¡Descargas iniciadas!', detail);
+    if (window.showToast) window.showToast('Descargas iniciadas. Revisa tu carpeta de descargas.');
+}
+
+async function startDownload() {
+    if (downloadState.running) return;
+    downloadState.running = true;
+    downloadState.cancelled = false;
+    downloadState.abortController = new AbortController();
+    clearDownloadError();
+
+    try {
+        if (!(await verifyDownloadPassword())) return;
+
+        const stats = getDownloadStats();
+        if (!stats.items.length) {
+            showDownloadError('Selecciona al menos un día, una foto o un video.');
+            return;
+        }
+
+        const format = document.querySelector('input[name="downloadFormat"]:checked')?.value || 'zip';
+        const includeText = !!document.getElementById('downloadIncludeText')?.checked;
+        const includeSong = !!document.getElementById('downloadIncludeSong')?.checked;
+        const embedMetadata = !!document.getElementById('downloadEmbedMetadata')?.checked;
+
+        if (format === 'individual' && stats.files.length > 20) {
+            const proceed = window.confirm(`Se descargarán ${stats.files.length} archivos individuales. El navegador puede pedir permiso y tardar varios minutos. ¿Continuar?`);
+            if (!proceed) return;
+        }
+
+        beginDownloadProgress('Preparando descarga...');
+        setDownloadProgress(0, 1, 'Iniciando...');
+
+        const options = { includeText, includeSong, embedMetadata };
+
+        if (format === 'zip') await runZipDownload(stats, options);
+        else await runIndividualDownload(stats, options);
+    } catch (error) {
+        if (downloadState.cancelled || isDownloadAbort(error, downloadState.abortController?.signal)) {
+            hideDownloadProgress();
+            showDownloadError('Descarga cancelada.');
+        } else {
+            console.error('Error en la descarga:', error);
+            hideDownloadProgress();
+            showDownloadError('No se pudo completar la descarga: ' + (error?.message || 'error desconocido'));
+        }
+    } finally {
+        downloadState.running = false;
+        downloadState.abortController = null;
+    }
+}
+
+function setupDownload() {
+    const modal = document.getElementById('downloadModal');
+    if (!modal) return;
+
+    ['downloadIncludeText', 'downloadIncludeSong', 'downloadEmbedMetadata', 'downloadIncludeVideos'].forEach(id => {
+        const element = document.getElementById(id);
+        if (element) element.addEventListener('change', updateDownloadSummary);
+    });
+
+    document.querySelectorAll('input[name="downloadFormat"]').forEach(radio => {
+        radio.addEventListener('change', updateDownloadSummary);
+    });
+
+    modal.addEventListener('click', event => {
+        if (event.target === modal) closeDownloadModal();
+    });
+
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && modal.style.display === 'block') closeDownloadModal();
+    });
+
+    const password = document.getElementById('downloadPassword');
+    if (password) {
+        password.addEventListener('keydown', event => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                startDownload();
+            }
+        });
+    }
+
+    window.openDownloadModal = openDownloadModal;
+    window.closeDownloadModal = closeDownloadModal;
+    window.setDownloadTab = setDownloadTab;
+    window.setDownloadMediaFilter = setDownloadMediaFilter;
+    window.toggleDownloadDate = toggleDownloadDate;
+    window.toggleDownloadMonth = toggleDownloadMonth;
+    window.toggleDownloadMedia = toggleDownloadMedia;
+    window.downloadSelectAll = downloadSelectAll;
+    window.downloadSelectCurrentMonth = downloadSelectCurrentMonth;
+    window.downloadSelectPreviousMonth = downloadSelectPreviousMonth;
+    window.downloadSelectRange = downloadSelectRange;
+    window.downloadClearSelection = downloadClearSelection;
+    window.downloadSelectAllVisibleMedia = downloadSelectAllVisibleMedia;
+    window.updateDownloadSummary = updateDownloadSummary;
+    window.startDownload = startDownload;
+    window.cancelDownload = cancelDownload;
 }
 

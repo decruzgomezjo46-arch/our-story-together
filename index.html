@@ -35,6 +35,10 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
+    <!-- Librerías locales para descargas (ZIP y metadatos EXIF) -->
+    <script src="vendor/jszip.min.js" defer></script>
+    <script src="vendor/piexif.min.js" defer></script>
+
     <!-- Lógica de la APP -->
     <script src="app.js" defer></script>
 </head>
@@ -62,6 +66,7 @@
             <li><a href="#galeria" onclick="switchTab('galeria')">Galería</a></li>
             <li><button class="nav-btn theme-toggle" id="theme-toggle"><i class="fa-solid fa-moon"></i></button></li>
             <li><button class="nav-btn" id="audio-toggle-btn" title="Pausar/Reproducir Canción"><i class="fa-solid fa-music"></i> <span id="audio-text-nav">Pausar</span></button></li>
+            <li><button class="nav-btn" onclick="openDownloadModal()"><i class="fa-solid fa-download"></i> Descargar</button></li>
             <li><button class="nav-btn" onclick="openModal()"><i class="fa-solid fa-plus"></i> Nuevo Recuerdo</button>
             </li>
         </ul>
@@ -215,6 +220,104 @@
 
                 <button type="submit" class="btn-submit">Guardar para siempre <i class="fa-solid fa-heart"></i></button>
             </form>
+        </div>
+    </div>
+
+    <!-- Modal para Descargar Recuerdos -->
+    <div id="downloadModal" class="modal">
+        <div class="modal-content download-modal-content">
+            <span class="close-btn" onclick="closeDownloadModal()">&times;</span>
+            <h3 class="modal-title">Descargar Recuerdos</h3>
+
+            <div id="download-setup">
+                <div class="download-password-row">
+                    <label for="downloadPassword">Contraseña de descarga</label>
+                    <input type="password" id="downloadPassword" inputmode="numeric"
+                        placeholder="Escribe la contraseña" autocomplete="current-password">
+                </div>
+
+                <div class="download-tabs">
+                    <button type="button" class="download-tab active" data-download-tab="fecha"
+                        onclick="setDownloadTab('fecha')">Por fecha</button>
+                    <button type="button" class="download-tab" data-download-tab="media"
+                        onclick="setDownloadTab('media')">Solo fotos/videos</button>
+                </div>
+
+                <div id="download-tab-fecha">
+                    <div class="download-quick-actions">
+                        <button type="button" onclick="downloadSelectAll()">Todo</button>
+                        <button type="button" onclick="downloadSelectCurrentMonth()">Este mes</button>
+                        <button type="button" onclick="downloadSelectPreviousMonth()">Mes anterior</button>
+                        <button type="button" onclick="downloadClearSelection()">Limpiar</button>
+                    </div>
+
+                    <div class="download-range">
+                        <input type="date" id="downloadRangeStart" aria-label="Fecha inicial">
+                        <span>a</span>
+                        <input type="date" id="downloadRangeEnd" aria-label="Fecha final">
+                        <button type="button" onclick="downloadSelectRange()">Seleccionar rango</button>
+                    </div>
+
+                    <label class="download-inline-option">
+                        <input type="checkbox" id="downloadIncludeVideos" checked onchange="updateDownloadSummary()">
+                        Incluir videos en la selección por fecha
+                    </label>
+
+                    <div class="download-date-list" id="downloadDateList"></div>
+                </div>
+
+                <div id="download-tab-media" style="display:none;">
+                    <div class="download-media-filters">
+                        <label><input type="radio" name="downloadMediaFilter" value="all" checked
+                                onchange="setDownloadMediaFilter('all')"> Todos</label>
+                        <label><input type="radio" name="downloadMediaFilter" value="image"
+                                onchange="setDownloadMediaFilter('image')"> Fotos</label>
+                        <label><input type="radio" name="downloadMediaFilter" value="video"
+                                onchange="setDownloadMediaFilter('video')"> Videos</label>
+                    </div>
+
+                    <div class="download-quick-actions">
+                        <button type="button" onclick="downloadSelectAllVisibleMedia()">Seleccionar todos los filtrados</button>
+                        <button type="button" onclick="downloadClearSelection()">Limpiar</button>
+                    </div>
+
+                    <div class="download-media-grid" id="downloadMediaGrid"></div>
+                </div>
+
+                <div class="download-options">
+                    <label><input type="checkbox" id="downloadIncludeText" checked>
+                        Incluir descripciones y manifiesto</label>
+                    <label><input type="checkbox" id="downloadIncludeSong" checked>
+                        Incluir la canción</label>
+                    <label><input type="checkbox" id="downloadEmbedMetadata" checked>
+                        Incrustar metadatos en las fotos</label>
+                </div>
+
+                <div class="download-format">
+                    <span>Formato:</span>
+                    <label><input type="radio" name="downloadFormat" value="zip" checked> ZIP</label>
+                    <label><input type="radio" name="downloadFormat" value="individual"> Individual</label>
+                </div>
+
+                <div class="download-summary" id="downloadSummary">Selecciona días o archivos.</div>
+                <p id="downloadError" class="download-error" role="alert"></p>
+
+                <button type="button" class="btn-primary download-start-btn" id="downloadStartBtn"
+                    onclick="startDownload()">
+                    <i class="fa-solid fa-download"></i> Descargar
+                </button>
+            </div>
+
+            <div id="download-progress" style="display:none;">
+                <div class="download-progress-title" id="downloadProgressTitle">Preparando descarga...</div>
+                <div class="download-progress-bar">
+                    <div class="download-progress-fill" id="downloadProgressFill"></div>
+                </div>
+                <p class="download-progress-detail" id="downloadProgressDetail"></p>
+                <button type="button" class="btn-primary" id="downloadCancelBtn" onclick="cancelDownload()">
+                    Cancelar
+                </button>
+            </div>
         </div>
     </div>
 
