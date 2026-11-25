@@ -257,9 +257,15 @@ function setupFiltersAndSearch() {
     const searchInput = document.getElementById('searchInput');
     if (!searchInput) return;
 
+    let searchTimeout = null;
     searchInput.addEventListener('input', (e) => {
-        currentSearchTerm = e.target.value.toLowerCase();
-        aplicarFiltrosYRenderizar();
+        const term = e.target.value.toLowerCase();
+        if (term === currentSearchTerm) return;
+        if (searchTimeout) clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            currentSearchTerm = term;
+            aplicarFiltrosYRenderizar();
+        }, 250);
     });
 }
 
@@ -312,6 +318,68 @@ function aplicarFiltrosYRenderizar() {
 // ==========================================
 let globalScrollObserver = null;
 let globalVideoObserver = null;
+const carouselControllers = new Set();
+let carouselVisibilityObserver = null;
+let currentAutoVideo = null;
+
+function playExclusiveAutoVideo(video, onFail) {
+    if (!video) return;
+    if (currentAutoVideo && currentAutoVideo !== video) {
+        try { currentAutoVideo.pause(); } catch (error) { /* Ignorar */ }
+    }
+    currentAutoVideo = video;
+    video.muted = true;
+    const playPromise = video.play();
+    if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch(() => {
+            if (currentAutoVideo === video) currentAutoVideo = null;
+            if (typeof onFail === 'function') onFail();
+        });
+    }
+}
+
+function pauseAutoVideo(video) {
+    if (!video) return;
+    if (currentAutoVideo === video) currentAutoVideo = null;
+    try { video.pause(); } catch (error) { /* Ignorar */ }
+}
+
+function getCarouselVisibilityObserver() {
+    if (!carouselVisibilityObserver) {
+        carouselVisibilityObserver = new IntersectionObserver(entries => {
+            entries.forEach(entry => {
+                const controller = entry.target.__carouselController;
+                if (!controller) return;
+                if (entry.isIntersecting && !document.hidden) controller.start();
+                else controller.stop();
+            });
+        }, { threshold: 0.25, rootMargin: '120px 0px' });
+    }
+    return carouselVisibilityObserver;
+}
+
+function destroyAllCarousels() {
+    carouselControllers.forEach(controller => {
+        if (carouselVisibilityObserver) carouselVisibilityObserver.unobserve(controller.container);
+        controller.destroy();
+    });
+    carouselControllers.clear();
+    if (currentAutoVideo) pauseAutoVideo(currentAutoVideo);
+}
+
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        carouselControllers.forEach(controller => controller.stop());
+        if (currentAutoVideo) pauseAutoVideo(currentAutoVideo);
+        return;
+    }
+    // Al volver a la pestaña, el observer vuelve a decidir qué carrusel debe moverse.
+    carouselControllers.forEach(controller => {
+        if (!carouselVisibilityObserver) return;
+        carouselVisibilityObserver.unobserve(controller.container);
+        carouselVisibilityObserver.observe(controller.container);
+    });
+});
 
 function observeScroll() {
     if (!globalScrollObserver) {
@@ -328,16 +396,14 @@ function observeScroll() {
         globalVideoObserver = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 const video = entry.target;
-                if (video.id === 'lightbox-video') return; 
-                
+                if (video.id === 'lightbox-video' || video.classList.contains('carousel-img')) return;
+
                 if (entry.isIntersecting) {
-                    if (video.paused && (video.classList.contains('timeline-video') || video.classList.contains('gallery-video') || video.classList.contains('active'))) {
-                        video.play().catch(e => {}); // Silenciado para evitar ruido en consola
+                    if (video.paused && (video.classList.contains('timeline-video') || video.classList.contains('gallery-video'))) {
+                        playExclusiveAutoVideo(video);
                     }
-                } else {
-                    if (!video.paused) {
-                        video.pause();
-                    }
+                } else if (!video.paused) {
+                    pauseAutoVideo(video);
                 }
             });
         }, { threshold: 0.3 });
@@ -843,6 +909,9 @@ function renderData(dataToRender) {
     const emptyTimeline = document.getElementById('empty-timeline');
     const gallery = document.getElementById('gallery-container');
 
+    // Limpiar temporizadores y videos de los carruseles que se van a destruir
+    destroyAllCarousels();
+
     document.querySelectorAll('.timeline-item').forEach(item => item.remove());
     gallery.innerHTML = '';
 
@@ -905,7 +974,7 @@ function renderData(dataToRender) {
                         if (item.type === 'video') {
                             itemsHTML += `<video src="${escapeHtml(item.url)}" class="carousel-img ${idx === 0 ? 'active' : ''}" muted playsinline preload="none" data-type="video" onclick="window.openLightbox('${escapeAttr(item.originalUrl)}', '${titleJs}', 'video')"></video>`;
                         } else {
-                            itemsHTML += `<img src="${escapeHtml(item.url)}" class="carousel-img ${idx === 0 ? 'active' : ''}" loading="lazy" data-type="image" onclick="window.openLightbox('${escapeAttr(item.originalUrl)}', '${titleJs}')">`;
+                            itemsHTML += `<img src="${escapeHtml(item.url)}" class="carousel-img ${idx === 0 ? 'active' : ''}" loading="lazy" decoding="async" data-type="image" onclick="window.openLightbox('${escapeAttr(item.originalUrl)}', '${titleJs}')">`;
                         }
                         indicatorsHTML += `<div class="indicator ${idx === 0 ? 'active' : ''}"></div>`;
                     });
@@ -968,7 +1037,7 @@ function renderData(dataToRender) {
                         if (item.type === 'video') {
                             itemsHTML += `<video src="${escapeHtml(item.url)}" class="carousel-img ${idx === 0 ? 'active' : ''}" muted playsinline preload="none" data-type="video" onclick="window.openLightbox('${escapeAttr(item.originalUrl)}', '${titleJs}', 'video')"></video>`;
                         } else {
-                            itemsHTML += `<img src="${escapeHtml(item.url)}" class="carousel-img ${idx === 0 ? 'active' : ''}" loading="lazy" data-type="image" onclick="window.openLightbox('${escapeAttr(item.originalUrl)}', '${titleJs}')">`;
+                            itemsHTML += `<img src="${escapeHtml(item.url)}" class="carousel-img ${idx === 0 ? 'active' : ''}" loading="lazy" decoding="async" data-type="image" onclick="window.openLightbox('${escapeAttr(item.originalUrl)}', '${titleJs}')">`;
                         }
                         indicatorsHTML += `<div class="indicator ${idx === 0 ? 'active' : ''}"></div>`;
                     });
@@ -1008,69 +1077,139 @@ function renderData(dataToRender) {
 
 /**
  * Gestiona un carrusel que espera a los videos antes de pasar.
+ * Solo se mueve cuando es visible y pausa sus videos al salir de pantalla.
  */
 function iniciarCarruselInteligente(container) {
+    if (!container || container.__carouselController) return;
+
     const items = container.querySelectorAll('.carousel-img');
     const indicators = container.querySelectorAll('.indicator');
     if (items.length <= 1) return;
 
     let currentIndex = 0;
     let timeout = null;
+    let watchTimer = null;
+    let running = false;
 
-    function nextSlide() {
-        if (timeout) clearTimeout(timeout);
-        
-        // Quitar estado anterior
-        const prevItem = items[currentIndex];
-        prevItem.classList.remove('active');
-        if (prevItem.tagName === 'VIDEO') {
-            prevItem.pause();
-            prevItem.onended = null;
+    function clearTimer() {
+        if (timeout) {
+            clearTimeout(timeout);
+            timeout = null;
+        }
+    }
+
+    function clearWatch() {
+        if (watchTimer) {
+            clearTimeout(watchTimer);
+            watchTimer = null;
+        }
+    }
+
+    function pauseItem(item) {
+        if (item && item.tagName === 'VIDEO') {
+            item.onended = null;
+            pauseAutoVideo(item);
+        }
+    }
+
+    // Si otro carrusel toma el turno del video, este se pausa. Este vigilante
+    // evita que el slide quede congelado esperando un "ended" que no llegará.
+    function watchActiveVideo(item) {
+        clearWatch();
+        watchTimer = setTimeout(() => {
+            watchTimer = null;
+            if (!running || item !== items[currentIndex]) return;
+            if (item.paused && !item.ended) {
+                nextSlide();
+                return;
+            }
+            if (!item.ended) watchActiveVideo(item);
+        }, 3000);
+    }
+
+    function scheduleNext() {
+        if (!running) return;
+        clearTimer();
+        timeout = setTimeout(nextSlide, 4500);
+    }
+
+    function showSlide(index, restartVideo) {
+        clearTimer();
+        clearWatch();
+        const currentItem = items[currentIndex];
+        if (currentItem) {
+            currentItem.classList.remove('active');
+            pauseItem(currentItem);
         }
         if (indicators[currentIndex]) indicators[currentIndex].classList.remove('active');
 
-        // Calcular nuevo índice
-        currentIndex = (currentIndex + 1) % items.length;
+        currentIndex = ((index % items.length) + items.length) % items.length;
 
-        // Activar nuevo ítem
-        const currentItem = items[currentIndex];
-        currentItem.classList.add('active');
+        const nextItem = items[currentIndex];
+        if (!nextItem) return;
+        nextItem.classList.add('active');
         if (indicators[currentIndex]) indicators[currentIndex].classList.add('active');
 
-        // Programar siguiente transición
-        if (currentItem.tagName === 'VIDEO') {
-            console.log("🎥 Reproduciendo video en carrusel...");
-            currentItem.currentTime = 0;
-            currentItem.muted = true; // El navegador requiere muted para autoplay
-            currentItem.play().catch(e => {
-                console.warn("Fallo autoplay clip:", e);
-                // Fallback si el dispositivo bloquea el video por ahorro de energía
-                timeout = setTimeout(nextSlide, 4500);
-            });
-            
-            // Cuando termine el video, pasar al siguiente instantáneamente
-            currentItem.onended = () => {
-                console.log("🎬 Video terminado, saltando slide.");
-                nextSlide();
+        if (nextItem.tagName === 'VIDEO') {
+            if (restartVideo) {
+                try { nextItem.currentTime = 0; } catch (error) { /* Ignorar */ }
+            }
+            playExclusiveAutoVideo(nextItem, scheduleNext);
+            nextItem.onended = () => {
+                if (running) nextSlide();
             };
+            watchActiveVideo(nextItem);
         } else {
-            // Si es imagen, esperar 4 segundos
-            timeout = setTimeout(nextSlide, 4500);
+            scheduleNext();
         }
     }
 
-    // Iniciar el temporizador para el primer elemento si es imagen
-    const firstItem = items[0];
-    if (firstItem.tagName === 'VIDEO') {
-        firstItem.muted = true;
-        firstItem.play().catch(e => {
-            console.warn("Fallo autoplay inicial:", e);
-            timeout = setTimeout(nextSlide, 4500);
-        });
-        firstItem.onended = () => nextSlide();
-    } else {
-        timeout = setTimeout(nextSlide, 4500);
+    function nextSlide() {
+        if (!running) return;
+        clearTimer();
+        showSlide(currentIndex + 1, true);
     }
+
+    function start() {
+        if (running) return;
+        running = true;
+        // Retomar exactamente donde se quedó el carrusel
+        showSlide(currentIndex, false);
+    }
+
+    function stop() {
+        running = false;
+        clearTimer();
+        clearWatch();
+        const currentItem = items[currentIndex];
+        pauseItem(currentItem);
+    }
+
+    function destroy() {
+        stop();
+        clearWatch();
+        items.forEach(item => {
+            if (item.tagName === 'VIDEO') {
+                item.onended = null;
+                pauseAutoVideo(item);
+            }
+        });
+        if (container.__carouselController === controller) {
+            delete container.__carouselController;
+        }
+    }
+
+    const controller = { container, start, stop, destroy };
+    container.__carouselController = controller;
+    carouselControllers.add(controller);
+
+    // Observar visibilidad: el observer decide cuándo arrancar o detenerse.
+    getCarouselVisibilityObserver().observe(container);
+
+    // Si ya está dentro del viewport al crearse, arrancar de inmediato.
+    const rect = container.getBoundingClientRect();
+    const inViewport = rect.bottom > 0 && rect.top < window.innerHeight;
+    if (inViewport && !document.hidden) start();
 }
 
 // ==========================================
@@ -1079,14 +1218,32 @@ function iniciarCarruselInteligente(container) {
 function createFloatingHearts() {
     const hero = document.querySelector('.hero');
     if (!hero) return;
+    // Respetar la preferencia de movimiento reducido (evita animaciones constantes)
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
     const heartsContainer = document.createElement('div');
     heartsContainer.className = 'floating-hearts-container';
     hero.appendChild(heartsContainer); // Insertarlo en la vista principal
 
+    let heroVisible = true;
+    if ('IntersectionObserver' in window) {
+        const heroObserver = new IntersectionObserver(entries => {
+            entries.forEach(entry => {
+                heroVisible = entry.isIntersecting;
+                heartsContainer.classList.toggle('paused', !heroVisible);
+            });
+        }, { threshold: 0 });
+        heroObserver.observe(hero);
+    }
+
     // Función para crear un solo corazón
     function createSingleHeart() {
-        if (!document.querySelector('.floating-hearts-container')) return;
+        if (!heartsContainer.isConnected) return;
+        // Si el hero no se ve, no gastamos recursos creando corazones
+        if (!heroVisible || document.hidden) {
+            setTimeout(createSingleHeart, 2000);
+            return;
+        }
         const heart = document.createElement('i');
         heart.classList.add('fa-solid', 'fa-heart', 'floating-heart');
 
@@ -1108,8 +1265,8 @@ function createFloatingHearts() {
         }, duration * 1000);
     }
 
-    // Iniciar múltiples corazones con distintos retrasos
-    const numHearts = 15;
+    // Menos corazones en pantalla: suficiente para el efecto, mucho menos costo
+    const numHearts = 8;
     for (let i = 0; i < numHearts; i++) {
         setTimeout(createSingleHeart, Math.random() * 5000);
     }
@@ -1521,20 +1678,28 @@ function setupSmartNavbar() {
 
     if (!navbar) return;
 
-    window.addEventListener('scroll', () => {
-        // En móviles, a veces el scroll elástico da valores negativos
-        if (window.scrollY <= 0) {
-            navbar.classList.remove('nav-hidden');
-            return;
-        }
+    let ticking = false;
 
-        // Si bajamos, ocultar. Si subimos, mostrar.
-        if (window.scrollY > lastScrollY && window.scrollY > 80) {
-            navbar.classList.add('nav-hidden');
-        } else {
-            navbar.classList.remove('nav-hidden');
-        }
-        lastScrollY = window.scrollY;
+    window.addEventListener('scroll', () => {
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(() => {
+            ticking = false;
+            // En móviles, a veces el scroll elástico da valores negativos
+            if (window.scrollY <= 0) {
+                navbar.classList.remove('nav-hidden');
+                lastScrollY = window.scrollY;
+                return;
+            }
+
+            // Si bajamos, ocultar. Si subimos, mostrar.
+            if (window.scrollY > lastScrollY && window.scrollY > 80) {
+                navbar.classList.add('nav-hidden');
+            } else {
+                navbar.classList.remove('nav-hidden');
+            }
+            lastScrollY = window.scrollY;
+        });
     }, { passive: true });
 }
 
@@ -1555,10 +1720,14 @@ const downloadState = {
     selectedMedia: new Set(),
     groups: [],
     mediaIndex: [],
+    mediaRenderLimit: 120,
+    mediaRendered: false,
     running: false,
     cancelled: false,
     abortController: null
 };
+
+const DOWNLOAD_MEDIA_PAGE_SIZE = 120;
 
 function downloadPad(number) {
     return String(number).padStart(2, '0');
@@ -1773,14 +1942,18 @@ function renderDownloadMediaGrid() {
     const files = getFilteredDownloadMedia();
     if (!files.length) {
         container.innerHTML = '<p style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text-muted);">No hay archivos para este filtro.</p>';
+        downloadState.mediaRendered = true;
         return;
     }
 
-    container.innerHTML = files.map(file => {
+    const limit = Math.min(downloadState.mediaRenderLimit, files.length);
+    const visibleFiles = files.slice(0, limit);
+
+    const cards = visibleFiles.map(file => {
         const caption = `${formatDownloadDay(file.date)} · ${file.title}`;
         const preview = file.type === 'video'
             ? '<div class="download-media-video"><i class="fa-solid fa-video"></i></div>'
-            : `<img src="${escapeHtml(getDownloadThumbnail(file))}" alt="" loading="lazy">`;
+            : `<img src="${escapeHtml(getDownloadThumbnail(file))}" alt="" loading="lazy" decoding="async">`;
         return `
             <div class="download-media-card">
                 ${preview}
@@ -1793,6 +1966,22 @@ function renderDownloadMediaGrid() {
             </div>
         `;
     }).join('');
+
+    const moreButton = limit < files.length
+        ? `<div style="grid-column:1/-1;text-align:center;padding:14px 0;">
+                <button type="button" class="btn btn-secondary" onclick="downloadShowMoreMedia()">
+                    Mostrar más (${files.length - limit} restantes)
+                </button>
+           </div>`
+        : '';
+
+    container.innerHTML = cards + moreButton;
+    downloadState.mediaRendered = true;
+}
+
+function downloadShowMoreMedia() {
+    downloadState.mediaRenderLimit += DOWNLOAD_MEDIA_PAGE_SIZE;
+    renderDownloadMediaGrid();
 }
 
 function toggleDownloadMedia(key, checked) {
@@ -1810,11 +1999,16 @@ function setDownloadTab(tab) {
     const mediaPane = document.getElementById('download-tab-media');
     if (datePane) datePane.style.display = downloadState.tab === 'fecha' ? 'block' : 'none';
     if (mediaPane) mediaPane.style.display = downloadState.tab === 'media' ? 'block' : 'none';
+    // La cuadrícula es pesada: solo se construye cuando la pestaña de medios se abre.
+    if (downloadState.tab === 'media' && !downloadState.mediaRendered) {
+        renderDownloadMediaGrid();
+    }
     updateDownloadSummary();
 }
 
 function setDownloadMediaFilter(filter) {
     downloadState.mediaFilter = ['image', 'video'].includes(filter) ? filter : 'all';
+    downloadState.mediaRenderLimit = DOWNLOAD_MEDIA_PAGE_SIZE;
     renderDownloadMediaGrid();
 }
 
@@ -2077,6 +2271,8 @@ function openDownloadModal() {
     buildDownloadData();
     downloadState.tab = 'fecha';
     downloadState.mediaFilter = 'all';
+    downloadState.mediaRenderLimit = DOWNLOAD_MEDIA_PAGE_SIZE;
+    downloadState.mediaRendered = false;
     downloadState.selectedDates.clear();
     downloadState.selectedMedia.clear();
     downloadState.cancelled = false;
@@ -2103,7 +2299,6 @@ function openDownloadModal() {
     hideDownloadProgress();
     setDownloadTab('fecha');
     renderDownloadDateList();
-    renderDownloadMediaGrid();
     updateDownloadSummary();
     modal.style.display = 'block';
 }
@@ -2726,6 +2921,7 @@ function setupDownload() {
     window.closeDownloadModal = closeDownloadModal;
     window.setDownloadTab = setDownloadTab;
     window.setDownloadMediaFilter = setDownloadMediaFilter;
+    window.downloadShowMoreMedia = downloadShowMoreMedia;
     window.toggleDownloadDate = toggleDownloadDate;
     window.toggleDownloadMonth = toggleDownloadMonth;
     window.toggleDownloadMedia = toggleDownloadMedia;

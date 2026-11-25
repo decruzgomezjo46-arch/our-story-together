@@ -180,7 +180,6 @@ h1, h2, h3, h4, .nav-brand {
     justify-content: center;
     text-align: center;
     background: url('https://images.unsplash.com/photo-1518199266791-5375a83190b7?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80') no-repeat center center/cover;
-    background-attachment: fixed;
     position: relative;
 }
 
@@ -334,8 +333,6 @@ h1, h2, h3, h4, .nav-brand {
 .timeline-card {
     padding: 25px;
     background: var(--card-bg);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
     border: 1px solid rgba(255, 255, 255, 0.2);
     position: relative;
     border-radius: var(--border-radius);
@@ -800,6 +797,10 @@ input[type="file"] { display: none; }
     bottom: -100px;
     color: rgba(255, 255, 255, 0.4);
     animation: floatUp linear forwards;
+}
+
+.floating-hearts-container.paused .floating-heart {
+    animation-play-state: paused;
 }
 
 @keyframes floatUp {
@@ -1273,6 +1274,8 @@ video.carousel-img {
     border-radius: 10px;
     overflow: hidden;
     background: rgba(255, 255, 255, 0.55);
+    content-visibility: auto;
+    contain-intrinsic-size: auto 118px;
 }
 
 .download-media-card img,
@@ -1509,8 +1512,6 @@ body.dark-mode .download-month-header {
     max-width: 800px;
     margin: -20px auto 25px auto;
     background: var(--card-bg);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: var(--border-radius);
     box-shadow: var(--shadow);
@@ -1555,7 +1556,6 @@ body.dark-mode .dreams-progress-bar { background: rgba(255, 255, 255, 0.08); }
 .dream-card {
     position: relative;
     background: var(--card-bg);
-    backdrop-filter: blur(12px);
     border: 2px dashed rgba(114, 47, 55, 0.35);
     border-radius: var(--border-radius);
     padding: 30px 20px 18px;
